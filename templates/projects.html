@@ -1782,14 +1782,30 @@
         let html = '';
         todos.forEach(todo => {
             html += `
-            <div class="flex items-center justify-between gap-2 p-2.5 rounded-xl hover:bg-slate-50 border border-slate-100 transition-colors group">
-                <label class="flex items-center gap-2.5 cursor-pointer select-none flex-1">
-                    <input type="checkbox" ${todo.completed ? 'checked' : ''} onchange="toggleTodo(${todo.id})" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer" />
-                    <span class="${todo.completed ? 'line-through text-slate-400 font-normal' : 'text-slate-700 font-medium'} text-xs">${escapeHtml(todo.title)}</span>
-                </label>
-                <button type="button" onclick="deleteTodo(${todo.id}, event)" title="Delete Item" class="text-slate-300 hover:text-rose-600 p-1 rounded-md opacity-60 group-hover:opacity-100 transition-all">
-                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                </button>
+            <div id="todo-item-${todo.id}" class="p-2.5 rounded-xl hover:bg-slate-50 border border-slate-100 transition-colors group">
+                <div id="todo-view-${todo.id}" class="flex items-center justify-between gap-2">
+                    <label class="flex items-center gap-2.5 cursor-pointer select-none flex-1 min-w-0">
+                        <input type="checkbox" ${todo.completed ? 'checked' : ''} onchange="toggleTodo(${todo.id})" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer shrink-0" />
+                        <span class="${todo.completed ? 'line-through text-slate-400 font-normal' : 'text-slate-700 font-medium'} text-xs truncate">${escapeHtml(todo.title)}</span>
+                    </label>
+                    <div class="flex items-center gap-1 shrink-0 opacity-70 group-hover:opacity-100 transition-opacity">
+                        <button type="button" onclick="startEditTodo(${todo.id})" title="Edit Item" class="text-slate-400 hover:text-blue-600 p-1 rounded-md hover:bg-blue-50 transition-colors">
+                            <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+                        </button>
+                        <button type="button" onclick="deleteTodo(${todo.id}, event)" title="Delete Item" class="text-slate-400 hover:text-rose-600 p-1 rounded-md hover:bg-rose-50 transition-colors">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+                </div>
+                <div id="todo-edit-${todo.id}" class="hidden items-center gap-2">
+                    <input type="text" id="todo-edit-input-${todo.id}" value="${escapeHtml(todo.title)}" onkeydown="handleTodoEditKeydown(event, ${todo.id})" class="flex-1 bg-white border border-blue-400 rounded-lg px-2.5 py-1 text-xs font-medium text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+                    <button type="button" onclick="saveEditTodo(${todo.id})" title="Save" class="p-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center justify-center">
+                        <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                    </button>
+                    <button type="button" onclick="cancelEditTodo(${todo.id})" title="Cancel" class="p-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors flex items-center justify-center">
+                        <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                    </button>
+                </div>
             </div>`;
         });
         container.innerHTML = html;
@@ -2146,6 +2162,74 @@
                 if (currentDrawerTask) renderDrawerTodos(currentDrawerTask.todos);
             } else {
                 alert(data.error || 'Failed to update item.');
+            }
+        })
+        .catch(err => console.error(err));
+    }
+
+    function startEditTodo(todoId) {
+        const viewEl = document.getElementById(`todo-view-${todoId}`);
+        const editEl = document.getElementById(`todo-edit-${todoId}`);
+        const inputEl = document.getElementById(`todo-edit-input-${todoId}`);
+        if (viewEl && editEl && inputEl) {
+            viewEl.classList.add('hidden');
+            editEl.classList.remove('hidden');
+            editEl.classList.add('flex');
+            if (window.lucide) lucide.createIcons();
+            inputEl.focus();
+            inputEl.select();
+        }
+    }
+
+    function cancelEditTodo(todoId) {
+        const viewEl = document.getElementById(`todo-view-${todoId}`);
+        const editEl = document.getElementById(`todo-edit-${todoId}`);
+        if (viewEl && editEl) {
+            editEl.classList.add('hidden');
+            editEl.classList.remove('flex');
+            viewEl.classList.remove('hidden');
+        }
+    }
+
+    function handleTodoEditKeydown(event, todoId) {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            saveEditTodo(todoId);
+        } else if (event.key === 'Escape') {
+            event.preventDefault();
+            cancelEditTodo(todoId);
+        }
+    }
+
+    function saveEditTodo(todoId) {
+        const inputEl = document.getElementById(`todo-edit-input-${todoId}`);
+        if (!inputEl) return;
+        const newTitle = inputEl.value.trim();
+        if (!newTitle) {
+            alert("Checklist item title cannot be empty.");
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('title', newTitle);
+
+        fetch(`/task/todo/${todoId}/edit/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: formData
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                if (currentDrawerTask && currentDrawerTask.todos) {
+                    const todo = currentDrawerTask.todos.find(t => t.id === todoId);
+                    if (todo) todo.title = data.todo.title;
+                    renderDrawerTodos(currentDrawerTask.todos);
+                }
+            } else {
+                alert(data.error || 'Failed to edit item.');
             }
         })
         .catch(err => console.error(err));

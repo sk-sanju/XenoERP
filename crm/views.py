@@ -1992,6 +1992,33 @@ def toggle_task_todo(request, todo_id):
 
 
 @login_required
+def edit_task_todo(request, todo_id):
+    if request.method == 'POST':
+        org = request.user.profile.organization
+        todo = get_object_or_404(TaskTodo, id=todo_id)
+        task = todo.task
+        if (task.lead and task.lead.organization != org) or (not task.lead and task.organization != org):
+            return JsonResponse({'success': False, 'error': 'Access denied.'}, status=403)
+
+        title = request.POST.get('title', '').strip()
+        if not title:
+            return JsonResponse({'success': False, 'error': 'Title is required.'})
+
+        todo.title = title
+        todo.save()
+
+        return JsonResponse({
+            'success': True,
+            'todo': {
+                'id': todo.id,
+                'title': todo.title,
+                'completed': todo.completed
+            }
+        })
+    return JsonResponse({'success': False, 'error': 'Invalid method.'})
+
+
+@login_required
 def delete_task_todo(request, todo_id):
     if request.method == 'POST':
         org = request.user.profile.organization
