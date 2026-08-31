@@ -233,6 +233,23 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
                 const data = await response.json();
                 if (data.success) {
+                    const tr = select.closest('tr');
+                    if (tr) {
+                        const balanceCell = tr.querySelector('td:nth-child(5)');
+                        if (balanceCell) {
+                            if (newStatus.toLowerCase() === 'paid') {
+                                balanceCell.innerHTML = '<span class="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">₹0.00</span>';
+                            } else if (data.balance_due !== undefined) {
+                                const bVal = parseFloat(data.balance_due) || 0;
+                                if (bVal === 0) {
+                                    balanceCell.innerHTML = '<span class="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">₹0.00</span>';
+                                } else {
+                                    balanceCell.innerHTML = `<span class="text-xs font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">₹${bVal.toFixed(2)}</span>`;
+                                }
+                            }
+                        }
+                    }
+
                     if (data.stats) {
                         const totalEl = document.getElementById('statTotalInvoices');
                         const paidEl = document.getElementById('statPaidInvoices');
