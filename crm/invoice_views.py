@@ -118,6 +118,9 @@ def invoice_create(request):
                 if amount_paid == 0:
                     amount_paid = grand_total
                 balance_due = 0.0
+                initial_amount_paid = 0.0
+            else:
+                initial_amount_paid = amount_paid
 
             with transaction.atomic():
                 # Create Invoice
@@ -141,6 +144,7 @@ def invoice_create(request):
                     shipping_charge=float(data.get('shipping_charge') or 0),
                     grand_total=grand_total,
                     amount_paid=amount_paid,
+                    initial_amount_paid=initial_amount_paid,
                     balance_due=balance_due,
                     payment_method=data.get('payment_method', ''),
                     bank_account_details=data.get('bank_account_details', ''),
@@ -229,9 +233,12 @@ def invoice_edit(request, invoice_id):
                     invoice.balance_due = max(0.0, invoice.grand_total - invoice.amount_paid)
 
                 if invoice.status and invoice.status.strip().lower() == 'paid':
-                    if invoice.amount_paid == 0:
-                        invoice.amount_paid = invoice.grand_total
+                    if (not invoice.initial_amount_paid or invoice.initial_amount_paid == 0) and invoice.amount_paid > 0 and invoice.amount_paid < invoice.grand_total:
+                        invoice.initial_amount_paid = invoice.amount_paid
+                    invoice.amount_paid = invoice.grand_total
                     invoice.balance_due = 0.0
+                else:
+                    invoice.initial_amount_paid = invoice.amount_paid
 
                 invoice.payment_method = data.get('payment_method', '')
                 invoice.bank_account_details = data.get('bank_account_details', '')
@@ -289,11 +296,31 @@ def invoice_update_status(request, invoice_id):
             data = json.loads(request.body)
             new_status = data.get('status')
             if new_status:
-                invoice.status = new_status.strip()
-                invoice.save(update_fields=['status'])
+                new_status_str = new_status.strip()
+                invoice.status = new_status_str
+                update_fields = ['status']
+                
+                if new_status_str.lower() == 'paid':
+                    # If invoice was partial/pending with an initial paid amount, record it if not already recorded
+                    if (not invoice.initial_amount_paid or invoice.initial_amount_paid == 0) and invoice.amount_paid > 0 and invoice.amount_paid < invoice.grand_total:
+                        invoice.initial_amount_paid = invoice.amount_paid
+                        update_fields.append('initial_amount_paid')
+                    
+                    # Full payment complete: make balance_due zero and amount_paid equal to grand_total
+                    invoice.amount_paid = invoice.grand_total
+                    invoice.balance_due = 0.00
+                    update_fields.extend(['amount_paid', 'balance_due'])
+                
+                invoice.save(update_fields=list(set(update_fields)))
                 
                 stats = get_invoice_stats(user_profile.organization)
-                return JsonResponse({'success': True, 'stats': stats})
+                return JsonResponse({
+                    'success': True,
+                    'stats': stats,
+                    'balance_due': f"{invoice.balance_due:.2f}",
+                    'amount_paid': f"{invoice.amount_paid:.2f}",
+                    'status': invoice.status
+                })
         except Exception as e:
             return JsonResponse({'success': False, 'error': str(e)})
     return JsonResponse({'success': False, 'error': 'Invalid request'})

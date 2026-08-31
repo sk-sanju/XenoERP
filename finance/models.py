@@ -473,6 +473,7 @@ class Invoice(models.Model):
     grand_total = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     
     amount_paid = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    initial_amount_paid = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     balance_due = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     
     payment_method = models.CharField(max_length=100, blank=True, null=True)
