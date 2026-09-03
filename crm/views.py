@@ -1706,19 +1706,26 @@ def search_leads_json_view(request):
 def add_task(request):
     if request.method == 'POST':
         lead_id = request.POST.get('lead_id')
-        title = request.POST.get('title', 'Project Task')
-        desc = request.POST.get('description', '')
+        desc = request.POST.get('description', '').strip()
+        title = request.POST.get('title', '').strip()
+        if not title:
+            title = desc[:255] if desc else 'Project Task'
         start_date = request.POST.get('start_date') or None
         due_date = request.POST.get('due_date')
         if not due_date:
-            from django.utils import timezone
-            due_date = timezone.now().date() + timezone.timedelta(days=7)
+            due_date = timezone.now().date() + timedelta(days=7)
         priority = request.POST.get('priority', 'Medium')
         risk_level = request.POST.get('risk_level', 'Low')
         prog_val = request.POST.get('progress')
         progress = int(prog_val) if prog_val and prog_val.isdigit() else 0
         completed = request.POST.get('completed') == 'true' or request.POST.get('completed') == 'on'
         org = request.user.profile.organization
+        
+        is_ajax = (
+            request.headers.get('x-requested-with') == 'XMLHttpRequest' or
+            request.headers.get('X-Requested-With') == 'XMLHttpRequest' or
+            request.POST.get('ajax') == 'true'
+        )
         
         try:
             lead = None
@@ -1757,17 +1764,18 @@ def add_task(request):
                 Activity.objects.create(
                     lead=lead,
                     type='Task',
-                    description=f"Created task: {title} (Priority: {priority}, Due: {due_date})"
+                    description=f"Created task: {desc or title} (Priority: {priority}, Due: {due_date})"
                 )
             
-            if request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.POST.get('ajax') == 'true':
+            if is_ajax:
+                due_formatted = task.due_date.strftime('%b %d') if hasattr(task.due_date, 'strftime') else str(task.due_date)
                 return JsonResponse({
                     'success': True,
                     'task': {
                         'id': task.id,
                         'title': task.title,
                         'description': task.description,
-                        'due_date_formatted': task.due_date.strftime('%b %d'),
+                        'due_date_formatted': due_formatted,
                         'priority': task.priority,
                         'completed': task.completed
                     }
@@ -1775,12 +1783,12 @@ def add_task(request):
             SystemNotification.objects.create(user=request.user, message='Task created successfully.', type='success')
             return redirect('projects')
         except Lead.DoesNotExist:
-            if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            if is_ajax:
                 return JsonResponse({'success': False, 'error': 'Lead not found.'})
             messages.error(request, 'Lead not found.')
             return redirect('projects')
         except Exception as e:
-            if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            if is_ajax:
                 return JsonResponse({'success': False, 'error': str(e)})
             messages.error(request, f'Error: {str(e)}')
             return redirect('projects')
@@ -2459,7 +2467,12 @@ def delete_task(request, task_id):
         if (task.lead and task.lead.organization != org) or (not task.lead and task.organization != org):
             return JsonResponse({'success': False, 'error': 'Invalid task.'})
         task.delete()
-        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        is_ajax = (
+            request.headers.get('x-requested-with') == 'XMLHttpRequest' or
+            request.headers.get('X-Requested-With') == 'XMLHttpRequest' or
+            request.POST.get('ajax') == 'true'
+        )
+        if is_ajax:
             return JsonResponse({'success': True, 'message': 'Task deleted successfully.'})
         SystemNotification.objects.create(user=request.user, message='Task deleted.', type='success')
         return redirect('projects')
