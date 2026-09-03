@@ -1432,7 +1432,7 @@ def leads_view(request):
 
     # 1. Search Query
     if q:
-        leads_qs = leads_qs.filter(name__icontains=q)
+        leads_qs = leads_qs.filter(Q(name__icontains=q) | Q(company__icontains=q))
         
     # 2. Filters
     if status_filter:
