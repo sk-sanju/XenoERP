@@ -1631,33 +1631,31 @@ def send_whatsapp_cloud_api_view(request):
     Uses backend whatsapp_service module keeping tokens secure server-side.
     """
     if request.method != 'POST':
-        return JsonResponse({'success': False, 'error': 'Invalid HTTP method. POST required.'}, status=405)
+        return JsonResponse({'success': False, 'error': 'Invalid HTTP method'}, status=405)
 
     import json
     org = request.user.profile.organization
     lead_id = request.POST.get('lead_id')
-    recipient_phone = request.POST.get('phone_number') or request.POST.get('recipient_phone') or ''
-    message_text = request.POST.get('message', '')
+    recipient_phone = request.POST.get('phone_number') or request.POST.get('recipient_phone')
+    message_text = request.POST.get('message', '').strip()
     buttons_json = request.POST.get('buttons', '[]')
-    template_name = request.POST.get('template_name', '').strip() or None
+    template_name = request.POST.get('template_name', '').strip()
     template_language = request.POST.get('template_language', 'en_US').strip()
     custom_token = request.POST.get('access_token', '').strip() or None
     custom_phone_id = request.POST.get('phone_number_id', '').strip() or None
-    
+
     lead = None
     if lead_id:
         try:
             lead = Lead.objects.get(id=lead_id, organization=org)
         except (Lead.DoesNotExist, ValueError):
-            return JsonResponse({'success': False, 'error': 'Lead not found in your organization.'}, status=404)
+            return JsonResponse({'success': False, 'error': 'Lead not found in your organization'}, status=404)
 
     if not lead and not recipient_phone:
-        return JsonResponse({'success': False, 'error': 'Please provide either a valid Lead ID or Recipient Phone Number.'}, status=400)
+        return JsonResponse({'success': False, 'error': 'Recipient lead or phone number is required.'}, status=400)
 
     try:
         buttons = json.loads(buttons_json) if isinstance(buttons_json, str) else buttons_json
-        if not isinstance(buttons, list):
-            buttons = []
     except Exception:
         buttons = []
 
@@ -1667,7 +1665,7 @@ def send_whatsapp_cloud_api_view(request):
         recipient_phone=recipient_phone,
         message_text=message_text,
         buttons=buttons,
-        template_name=template_name,
+        template_name=template_name or None,
         template_language=template_language,
         custom_token=custom_token,
         custom_phone_id=custom_phone_id,

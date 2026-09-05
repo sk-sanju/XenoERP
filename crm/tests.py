@@ -96,6 +96,50 @@ class XenoCRMTests(TestCase):
         self.assertIn(self.lead1, [l for l in leads])
         self.assertNotIn(self.lead2, [l for l in leads])
 
+    def test_leads_view_search_by_name_and_company(self):
+        self.client.login(username='user1', password='password123')
+        
+        lead_extra = Lead.objects.create(
+            organization=self.org1,
+            name="Alice Wonder",
+            email="alice@acme.com",
+            company="Acme Corporation",
+            score=70,
+            status="New",
+            stage="New",
+            value=5000,
+            owner=self.profile1
+        )
+        
+        # 1. Search by lead name ("Alice")
+        response = self.client.get(reverse('leads') + '?q=Alice')
+        self.assertEqual(response.status_code, 200)
+        leads = list(response.context['leads'])
+        self.assertIn(lead_extra, leads)
+        self.assertNotIn(self.lead1, leads)
+        
+        # 2. Search by company name ("Acme")
+        response = self.client.get(reverse('leads') + '?q=Acme')
+        self.assertEqual(response.status_code, 200)
+        leads = list(response.context['leads'])
+        self.assertIn(lead_extra, leads)
+        self.assertNotIn(self.lead1, leads)
+        
+        # 3. Search by partial company name ("Doe Corp" -> "Doe")
+        response = self.client.get(reverse('leads') + '?q=Doe')
+        self.assertEqual(response.status_code, 200)
+        leads = list(response.context['leads'])
+        self.assertIn(self.lead1, leads)
+        self.assertNotIn(lead_extra, leads)
+        
+        # 4. Search via AJAX
+        response_ajax = self.client.get(reverse('leads') + '?q=Acme', HTTP_X_REQUESTED_WITH='XMLHttpRequest')
+        self.assertEqual(response_ajax.status_code, 200)
+        data = response_ajax.json()
+        self.assertIn('Alice Wonder', data['html'])
+        self.assertIn('Acme Corporation', data['html'])
+        self.assertNotIn('John Doe', data['html'])
+
     def test_leads_view_excludes_qualified(self):
         self.client.login(username='user1', password='password123')
         
