@@ -42,7 +42,7 @@ class Activity(models.Model):
 
 class WhatsAppMessage(models.Model):
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='whatsapp_messages')
-    lead = models.ForeignKey('leads.Lead', on_delete=models.CASCADE, related_name='whatsapp_messages')
+    lead = models.ForeignKey('leads.Lead', on_delete=models.CASCADE, related_name='whatsapp_messages', null=True, blank=True)
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     recipient_phone = models.CharField(max_length=50)
     template_name = models.CharField(max_length=100, blank=True, null=True)
