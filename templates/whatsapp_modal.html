@@ -742,14 +742,31 @@
     window.updateWhatsAppPreview = function() {
         const input = document.getElementById('whatsapp-msg-input');
         const preview = document.getElementById('whatsapp-preview-text');
-        if (!input || !preview) return;
+        if (!input) return;
 
         let val = input.value || '';
-        val = val.replace(/\{\{name\}\}/g, leadNameVal || 'Client')
-                 .replace(/\{\{company\}\}/g, leadCompanyVal || 'Company')
-                 .replace(/\{\{phone\}\}/g, leadPhoneVal || '');
+        const charCount = val.length;
+        const words = val.trim() ? val.trim().split(/\s+/).length : 0;
+        const readTimeSec = Math.max(1, Math.round(words / 3.5));
 
-        preview.innerText = val;
+        const charEl = document.getElementById('wa-stat-chars');
+        const wordEl = document.getElementById('wa-stat-words');
+        const timeEl = document.getElementById('wa-stat-readtime');
+        if (charEl) charEl.textContent = charCount;
+        if (wordEl) wordEl.textContent = words;
+        if (timeEl) timeEl.textContent = words > 0 ? `${readTimeSec}s` : '0s';
+
+        if (preview) {
+            let rendered = val.replace(/\{\{name\}\}/g, leadNameVal || 'Client')
+                              .replace(/\{\{company\}\}/g, leadCompanyVal || 'Company')
+                              .replace(/\{\{phone\}\}/g, leadPhoneVal || '');
+            preview.innerText = rendered;
+        }
+
+        const now = new Date();
+        const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        const prevTime = document.getElementById('whatsapp-preview-time');
+        if (prevTime) prevTime.textContent = timeStr;
     };
 
     window.insertWhatsAppTag = function(tag) {
@@ -830,6 +847,140 @@
         if (m) m.classList.add('opacity-0', 'pointer-events-none');
     };
 
+    window.copyWhatsAppText = function() {
+        const input = document.getElementById('whatsapp-msg-input');
+        if (!input || !input.value.trim()) {
+            alert("No message content to copy.");
+            return;
+        }
+        let val = input.value.replace(/\{\{name\}\}/g, leadNameVal || '')
+                            .replace(/\{\{company\}\}/g, leadCompanyVal || '')
+                            .replace(/\{\{phone\}\}/g, leadPhoneVal || '');
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(val).then(() => {
+                alert("WhatsApp message copied to clipboard!");
+            }).catch(() => {
+                prompt("Copy message text:", val);
+            });
+        } else {
+            prompt("Copy message text:", val);
+        }
+    };
+
+    window.openSendTestModal = function() {
+        const m = document.getElementById('send-test-modal');
+        if (m) m.classList.remove('opacity-0', 'pointer-events-none');
+    };
+
+    window.closeSendTestModal = function() {
+        const m = document.getElementById('send-test-modal');
+        if (m) m.classList.add('opacity-0', 'pointer-events-none');
+    };
+
+    window.executeSendTestWhatsApp = function() {
+        const phoneInput = document.getElementById('test-phone-input');
+        const phoneVal = phoneInput ? phoneInput.value.trim() : '';
+        if (!phoneVal) {
+            alert("Please enter a test phone number.");
+            return;
+        }
+
+        const msgInput = document.getElementById('whatsapp-msg-input');
+        const messageText = msgInput ? msgInput.value.trim() : 'Test message from XenoERP';
+        const csrfToken = "{{ csrf_token }}";
+
+        fetch("{% url 'send_whatsapp_cloud_api' %}", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/x-www-form-urlencoded",
+                "X-CSRFToken": csrfToken,
+            },
+            body: new URLSearchParams({
+                "phone_number": phoneVal,
+                "message": messageText,
+                "buttons": "[]"
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            closeSendTestModal();
+            if (data.success) {
+                alert(data.message || "Test WhatsApp message sent successfully!");
+            } else {
+                alert(data.error || "Failed to send test WhatsApp message.");
+            }
+        })
+        .catch(err => {
+            closeSendTestModal();
+            alert("Network error: " + err.message);
+        });
+    };
+
+    window.openChangeRecipientModal = function() {
+        const m = document.getElementById('change-recipient-modal');
+        if (m) {
+            m.classList.remove('opacity-0', 'pointer-events-none');
+            searchLeadsForWhatsApp('');
+        }
+    };
+
+    window.closeChangeRecipientModal = function() {
+        const m = document.getElementById('change-recipient-modal');
+        if (m) m.classList.add('opacity-0', 'pointer-events-none');
+    };
+
+    let searchDebounceTimer = null;
+    window.searchLeadsForWhatsApp = function(query) {
+        clearTimeout(searchDebounceTimer);
+        searchDebounceTimer = setTimeout(() => {
+            fetch(`{% url 'search_leads_json' %}?q=${encodeURIComponent(query || '')}`)
+                .then(r => r.json())
+                .then(data => {
+                    const container = document.getElementById('recipient-search-results');
+                    if (!container) return;
+                    if (!data.leads || !data.leads.length) {
+                        container.innerHTML = '<div class="p-4 text-center text-slate-500">No matching contacts found.</div>';
+                        return;
+                    }
+                    let html = '';
+                    data.leads.forEach(l => {
+                        html += `
+                            <div onclick="selectLeadForWhatsApp('${l.id}', '${escape(l.name)}', '${escape(l.phone_number || '')}', '${escape(l.company || '')}')"
+                                class="p-3 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl cursor-pointer flex items-center justify-between transition-colors">
+                                <div>
+                                    <div class="font-bold text-white">${l.name}</div>
+                                    <div class="text-[11px] text-slate-400">${l.company} • <span class="font-mono text-emerald-400">${l.phone_number || 'No phone'}</span></div>
+                                </div>
+                                <span class="material-symbols-outlined text-slate-500 text-[18px]">chevron_right</span>
+                            </div>
+                        `;
+                    });
+                    container.innerHTML = html;
+                })
+                .catch(() => {});
+        }, 200);
+    };
+
+    window.selectLeadForWhatsApp = function(id, name, phone, company) {
+        activeLeadId = id;
+        leadNameVal = unescape(name);
+        leadPhoneVal = unescape(phone);
+        leadCompanyVal = unescape(company);
+
+        const nameEl = document.getElementById('lead-display-name');
+        const compEl = document.getElementById('lead-display-company');
+        const phoneEl = document.getElementById('lead-display-phone');
+        const footerPhone = document.getElementById('wa-footer-phone-display');
+
+        if (nameEl) nameEl.textContent = leadNameVal;
+        if (compEl) compEl.innerHTML = `<span class="material-symbols-outlined text-[14px] text-slate-500">corporate_fare</span> <span>${leadCompanyVal || 'Individual Client'}</span>`;
+        if (phoneEl) phoneEl.textContent = leadPhoneVal || 'No Phone';
+        if (footerPhone) footerPhone.textContent = leadPhoneVal || 'Recipient Phone';
+
+        updateWhatsAppPreview();
+        closeChangeRecipientModal();
+    };
+
     let currentSendMode = 'normal_whatsapp';
 
     window.openSendConfirmationModal = function(mode) {
@@ -888,6 +1039,9 @@
             btn.disabled = true;
             btn.innerHTML = `<span class="material-symbols-outlined text-[16px] animate-spin">progress_activity</span> Dispatching Meta Cloud API...`;
         }
+
+        const select = document.getElementById('wa-template-select');
+        const selectedTemplateKey = select ? select.value : '';
 
         fetch("{% url 'send_whatsapp_cloud_api' %}", {
             method: "POST",

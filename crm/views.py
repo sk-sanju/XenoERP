@@ -1432,14 +1432,7 @@ def leads_view(request):
 
     # 1. Search Query
     if q:
-        leads_qs = leads_qs.filter(
-            Q(name__icontains=q) |
-            Q(company__icontains=q) |
-            Q(phone_number__icontains=q) |
-            Q(alt_phone_number__icontains=q) |
-            Q(email__icontains=q) |
-            Q(location__icontains=q)
-        )
+        leads_qs = leads_qs.filter(name__icontains=q)
         
     # 2. Filters
     if status_filter:
@@ -1634,7 +1627,7 @@ def send_whatsapp_page_view(request, lead_id):
 @login_required
 def send_whatsapp_cloud_api_view(request):
     """
-    Sends native interactive WhatsApp Business Cloud API messages containing native action buttons.
+    Sends native interactive WhatsApp Business Cloud API messages containing native action buttons or templates.
     Uses backend whatsapp_service module keeping tokens secure server-side.
     """
     if request.method != 'POST':
@@ -1643,31 +1636,41 @@ def send_whatsapp_cloud_api_view(request):
     import json
     org = request.user.profile.organization
     lead_id = request.POST.get('lead_id')
-    message_text = request.POST.get('message', '')
+    recipient_phone = request.POST.get('phone_number') or request.POST.get('recipient_phone')
+    message_text = request.POST.get('message', '').strip()
     buttons_json = request.POST.get('buttons', '[]')
-    template_name = request.POST.get('template_name', '')
+    template_name = request.POST.get('template_name', '').strip()
+    template_language = request.POST.get('template_language', 'en_US').strip()
     custom_token = request.POST.get('access_token', '').strip() or None
     custom_phone_id = request.POST.get('phone_number_id', '').strip() or None
-    
-    try:
-        lead = Lead.objects.get(id=lead_id, organization=org)
-    except Lead.DoesNotExist:
-        return JsonResponse({'success': False, 'error': 'Lead not found'}, status=404)
+
+    lead = None
+    if lead_id:
+        try:
+            lead = Lead.objects.get(id=lead_id, organization=org)
+        except (Lead.DoesNotExist, ValueError):
+            return JsonResponse({'success': False, 'error': 'Lead not found in your organization'}, status=404)
+
+    if not lead and not recipient_phone:
+        return JsonResponse({'success': False, 'error': 'Recipient lead or phone number is required.'}, status=400)
 
     try:
-        buttons = json.loads(buttons_json)
+        buttons = json.loads(buttons_json) if isinstance(buttons_json, str) else buttons_json
     except Exception:
         buttons = []
 
     from .whatsapp_service import send_meta_cloud_api_message
     res = send_meta_cloud_api_message(
         lead=lead,
+        recipient_phone=recipient_phone,
         message_text=message_text,
         buttons=buttons,
-        template_name=template_name,
+        template_name=template_name or None,
+        template_language=template_language,
         custom_token=custom_token,
         custom_phone_id=custom_phone_id,
-        user=request.user
+        user=request.user,
+        organization=org
     )
 
     return JsonResponse(res)
@@ -1706,26 +1709,19 @@ def search_leads_json_view(request):
 def add_task(request):
     if request.method == 'POST':
         lead_id = request.POST.get('lead_id')
-        desc = request.POST.get('description', '').strip()
-        title = request.POST.get('title', '').strip()
-        if not title:
-            title = desc[:255] if desc else 'Project Task'
+        title = request.POST.get('title', 'Project Task')
+        desc = request.POST.get('description', '')
         start_date = request.POST.get('start_date') or None
         due_date = request.POST.get('due_date')
         if not due_date:
-            due_date = timezone.now().date() + timedelta(days=7)
+            from django.utils import timezone
+            due_date = timezone.now().date() + timezone.timedelta(days=7)
         priority = request.POST.get('priority', 'Medium')
         risk_level = request.POST.get('risk_level', 'Low')
         prog_val = request.POST.get('progress')
         progress = int(prog_val) if prog_val and prog_val.isdigit() else 0
         completed = request.POST.get('completed') == 'true' or request.POST.get('completed') == 'on'
         org = request.user.profile.organization
-        
-        is_ajax = (
-            request.headers.get('x-requested-with') == 'XMLHttpRequest' or
-            request.headers.get('X-Requested-With') == 'XMLHttpRequest' or
-            request.POST.get('ajax') == 'true'
-        )
         
         try:
             lead = None
@@ -1764,18 +1760,17 @@ def add_task(request):
                 Activity.objects.create(
                     lead=lead,
                     type='Task',
-                    description=f"Created task: {desc or title} (Priority: {priority}, Due: {due_date})"
+                    description=f"Created task: {title} (Priority: {priority}, Due: {due_date})"
                 )
             
-            if is_ajax:
-                due_formatted = task.due_date.strftime('%b %d') if hasattr(task.due_date, 'strftime') else str(task.due_date)
+            if request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.POST.get('ajax') == 'true':
                 return JsonResponse({
                     'success': True,
                     'task': {
                         'id': task.id,
                         'title': task.title,
                         'description': task.description,
-                        'due_date_formatted': due_formatted,
+                        'due_date_formatted': task.due_date.strftime('%b %d'),
                         'priority': task.priority,
                         'completed': task.completed
                     }
@@ -1783,12 +1778,12 @@ def add_task(request):
             SystemNotification.objects.create(user=request.user, message='Task created successfully.', type='success')
             return redirect('projects')
         except Lead.DoesNotExist:
-            if is_ajax:
+            if request.headers.get('x-requested-with') == 'XMLHttpRequest':
                 return JsonResponse({'success': False, 'error': 'Lead not found.'})
             messages.error(request, 'Lead not found.')
             return redirect('projects')
         except Exception as e:
-            if is_ajax:
+            if request.headers.get('x-requested-with') == 'XMLHttpRequest':
                 return JsonResponse({'success': False, 'error': str(e)})
             messages.error(request, f'Error: {str(e)}')
             return redirect('projects')
@@ -2467,12 +2462,7 @@ def delete_task(request, task_id):
         if (task.lead and task.lead.organization != org) or (not task.lead and task.organization != org):
             return JsonResponse({'success': False, 'error': 'Invalid task.'})
         task.delete()
-        is_ajax = (
-            request.headers.get('x-requested-with') == 'XMLHttpRequest' or
-            request.headers.get('X-Requested-With') == 'XMLHttpRequest' or
-            request.POST.get('ajax') == 'true'
-        )
-        if is_ajax:
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
             return JsonResponse({'success': True, 'message': 'Task deleted successfully.'})
         SystemNotification.objects.create(user=request.user, message='Task deleted.', type='success')
         return redirect('projects')
