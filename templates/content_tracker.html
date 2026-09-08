@@ -70,7 +70,7 @@
         <select name="editor_filter" class="w-full bg-slate-50/80 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500">
           <option value="">All Editors</option>
           {% for editor in editors %}
-          <option value="{{ editor.id }}" {% if editor_filter == editor.id|stringformat:"i" %}selected{% endif %}>{{ editor.user.get_full_name|default:editor.user.username }}</option>
+          <option value="{{ editor.id }}" {% if editor_filter == editor.id|stringformat:"i" %}selected{% endif %}>{{ editor.user.get_full_name|default:editor.user.username }}{% if editor.role %} ({{ editor.role }}){% endif %}</option>
           {% endfor %}
         </select>
       </div>
