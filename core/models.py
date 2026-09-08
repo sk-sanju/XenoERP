@@ -118,21 +118,19 @@ class UserProfile(models.Model):
         'hr_employees': 'staff',
         'campaigns': 'campaign',
         'campaign': 'campaigns',
+        'agreements': 'quotations',
+        'quotations': 'agreements',
     }
 
-    def check_page_permission(self, page_name):
-        if self.user and self.user.is_superuser:
-            return True
+    def _lookup_perm_dict(self, perms_dict, page_name, action='view'):
+        """
+        Helper to look up a permission in a JSON dictionary.
+        Returns True/False if an explicit setting exists, or None if not configured.
+        """
+        if not perms_dict or not isinstance(perms_dict, dict):
+            return None
 
         role_lower = (self.role or '').lower().strip()
-        if 'admin' in role_lower:
-            return True
-
-        pages_to_check = [page_name]
-        alias = self.PERMISSION_ALIASES.get(page_name)
-        if alias and alias not in pages_to_check:
-            pages_to_check.append(alias)
-
         candidate_prefixes = set([
             role_lower,
             role_lower.replace(' ', '_'),
@@ -145,39 +143,67 @@ class UserProfile(models.Model):
             'manager',
         ])
 
+        pages_to_check = [page_name]
+        alias = self.PERMISSION_ALIASES.get(page_name)
+        if alias and alias not in pages_to_check:
+            pages_to_check.append(alias)
+
+        for p in pages_to_check:
+            # Build search keys based on action
+            search_keys = []
+            if action == 'view':
+                for prefix in candidate_prefixes:
+                    search_keys.append(f"{prefix}_{p}")
+                    search_keys.append(f"{prefix}-{p}")
+                    search_keys.append(f"{prefix}_{p}_view")
+                search_keys.append(p)
+                search_keys.append(f"{p}_view")
+            elif action == 'edit':
+                for prefix in candidate_prefixes:
+                    search_keys.append(f"{prefix}_{p}_edit")
+                    search_keys.append(f"{prefix}-{p}-edit")
+                search_keys.append(f"{p}_edit")
+                search_keys.append(f"{p}-edit")
+            elif action == 'delete':
+                for prefix in candidate_prefixes:
+                    search_keys.append(f"{prefix}_{p}_delete")
+                    search_keys.append(f"{prefix}-{p}-delete")
+                search_keys.append(f"{p}_delete")
+                search_keys.append(f"{p}-delete")
+
+            for k in search_keys:
+                if k in perms_dict:
+                    val = perms_dict[k]
+                    if val is True or val == True or str(val).lower() == 'true':
+                        return True
+                    elif val is False or val == False or str(val).lower() == 'false':
+                        return False
+
+            # Check suffix matching
+            suffix = f"_{p}" if action == 'view' else f"_{p}_{action}"
+            for k, val in perms_dict.items():
+                if k.endswith(suffix):
+                    if val is True or val == True or str(val).lower() == 'true':
+                        return True
+                    elif val is False or val == False or str(val).lower() == 'false':
+                        return False
+
+        return None
+
+    def check_page_permission(self, page_name):
+        if self.user and self.user.is_superuser:
+            return True
+
+        role_lower = (self.role or '').lower().strip()
+        if 'admin' in role_lower:
+            return True
+
         # 1. Check Staff-specific overrides first
         try:
             custom_perms = json.loads(self.custom_permissions_json or '{}')
-            if custom_perms:
-                for p in pages_to_check:
-                    for prefix in candidate_prefixes:
-                        vk = f"{prefix}_{p}"
-                        if vk in custom_perms:
-                            val = custom_perms[vk]
-                            if val is True or val == True or str(val).lower() == 'true':
-                                return True
-                    if p in custom_perms:
-                        val = custom_perms[p]
-                        if val is True or val == True or str(val).lower() == 'true':
-                            return True
-                    for k, val in custom_perms.items():
-                        if k.endswith(f"_{p}") and (val is True or val == True or str(val).lower() == 'true'):
-                            return True
-
-                    for prefix in candidate_prefixes:
-                        sk = f"{prefix}_settings"
-                        if (p in self.SETTINGS_SUBPAGES or 'status' in p or 'settings' in p) and sk in custom_perms:
-                            val = custom_perms[sk]
-                            if val is True or val == True or str(val).lower() == 'true':
-                                return True
-
-                    main_module = p.split('_')[0] if '_' in p else p
-                    for prefix in candidate_prefixes:
-                        mk = f"{prefix}_{main_module}"
-                        if mk in custom_perms:
-                            val = custom_perms[mk]
-                            if val is True or val == True or str(val).lower() == 'true':
-                                return True
+            res = self._lookup_perm_dict(custom_perms, page_name, action='view')
+            if res is not None:
+                return res
         except Exception:
             pass
 
@@ -185,40 +211,32 @@ class UserProfile(models.Model):
         try:
             role_obj = StaffRole.objects.get(organization=self.organization, name=self.role)
             perms = json.loads(role_obj.permissions_json or '{}')
-            if perms:
-                for p in pages_to_check:
-                    for prefix in candidate_prefixes:
-                        vk = f"{prefix}_{p}"
-                        if vk in perms:
-                            val = perms[vk]
-                            if val is True or val == True or str(val).lower() == 'true':
-                                return True
-                    if p in perms:
-                        val = perms[p]
-                        if val is True or val == True or str(val).lower() == 'true':
-                            return True
-                    for k, val in perms.items():
-                        if k.endswith(f"_{p}") and (val is True or val == True or str(val).lower() == 'true'):
-                            return True
-
-                    for prefix in candidate_prefixes:
-                        sk = f"{prefix}_settings"
-                        if (p in self.SETTINGS_SUBPAGES or 'status' in p or 'settings' in p) and sk in perms:
-                            val = perms[sk]
-                            if val is True or val == True or str(val).lower() == 'true':
-                                return True
-
-                    main_module = p.split('_')[0] if '_' in p else p
-                    for prefix in candidate_prefixes:
-                        mk = f"{prefix}_{main_module}"
-                        if mk in perms:
-                            val = perms[mk]
-                            if val is True or val == True or str(val).lower() == 'true':
-                                return True
+            res = self._lookup_perm_dict(perms, page_name, action='view')
+            if res is not None:
+                return res
         except Exception:
             pass
 
-        # 3. Defaults fallback logic
+        # 3. Check Parent module fallback in custom_perms or perms if this is a subpage
+        main_module = page_name.split('_')[0] if '_' in page_name else None
+        if main_module and main_module != page_name:
+            try:
+                custom_perms = json.loads(self.custom_permissions_json or '{}')
+                res = self._lookup_perm_dict(custom_perms, main_module, action='view')
+                if res is not None:
+                    return res
+            except Exception:
+                pass
+            try:
+                role_obj = StaffRole.objects.get(organization=self.organization, name=self.role)
+                perms = json.loads(role_obj.permissions_json or '{}')
+                res = self._lookup_perm_dict(perms, main_module, action='view')
+                if res is not None:
+                    return res
+            except Exception:
+                pass
+
+        # 4. Defaults fallback logic
         if 'admin' in role_lower:
             return True
         elif 'manager' in role_lower:
@@ -226,12 +244,70 @@ class UserProfile(models.Model):
         else:
             return page_name in [
                 'dashboard', 'leads', 'calendar', 'clients', 'support', 'projects',
-                'hr', 'finance', 'agreements', 'campaigns', 'cms', 'staff', 'services',
+                'hr', 'finance', 'agreements', 'quotations', 'campaigns', 'cms', 'staff', 'services',
                 'lead_statuses', 'leads_settings', 'clients_status', 'projects_status',
                 'campaigns_status', 'calendar_status', 'support_status', 'finance_status',
                 'content_tracker', 'editor_dashboard', 'editor_board', 'content_settings',
                 'cms_settings', 'post_management'
             ]
+
+    def check_edit_permission(self, page_name):
+        if self.user and self.user.is_superuser:
+            return True
+
+        role_lower = (self.role or '').lower().strip()
+        if 'admin' in role_lower:
+            return True
+
+        # 1. Custom Staff Override
+        try:
+            custom_perms = json.loads(self.custom_permissions_json or '{}')
+            res = self._lookup_perm_dict(custom_perms, page_name, action='edit')
+            if res is not None:
+                return res
+        except Exception:
+            pass
+
+        # 2. Role-level permissions
+        try:
+            role_obj = StaffRole.objects.get(organization=self.organization, name=self.role)
+            perms = json.loads(role_obj.permissions_json or '{}')
+            res = self._lookup_perm_dict(perms, page_name, action='edit')
+            if res is not None:
+                return res
+        except Exception:
+            pass
+
+        return self.check_page_permission(page_name)
+
+    def check_delete_permission(self, page_name):
+        if self.user and self.user.is_superuser:
+            return True
+
+        role_lower = (self.role or '').lower().strip()
+        if 'admin' in role_lower:
+            return True
+
+        # 1. Custom Staff Override
+        try:
+            custom_perms = json.loads(self.custom_permissions_json or '{}')
+            res = self._lookup_perm_dict(custom_perms, page_name, action='delete')
+            if res is not None:
+                return res
+        except Exception:
+            pass
+
+        # 2. Role-level permissions
+        try:
+            role_obj = StaffRole.objects.get(organization=self.organization, name=self.role)
+            perms = json.loads(role_obj.permissions_json or '{}')
+            res = self._lookup_perm_dict(perms, page_name, action='delete')
+            if res is not None:
+                return res
+        except Exception:
+            pass
+
+        return self.check_page_permission(page_name)
 
     @property
     def has_access_dashboard(self):
@@ -243,11 +319,11 @@ class UserProfile(models.Model):
 
     @property
     def has_access_leads_settings(self):
-        return self.check_page_permission('leads_settings') or self.check_page_permission('lead_statuses')
+        return self.check_page_permission('leads_settings')
 
     @property
     def has_access_lead_statuses(self):
-        return self.check_page_permission('lead_statuses') or self.check_page_permission('leads_settings')
+        return self.check_page_permission('lead_statuses')
 
     @property
     def has_access_calendar(self):
@@ -259,7 +335,7 @@ class UserProfile(models.Model):
 
     @property
     def has_access_calendar_status_settings(self):
-        return self.check_page_permission('calendar_status')
+        return self.check_page_permission('calendar_status_settings')
 
     @property
     def has_access_clients(self):
@@ -271,7 +347,7 @@ class UserProfile(models.Model):
 
     @property
     def has_access_client_status_settings(self):
-        return self.check_page_permission('clients_status')
+        return self.check_page_permission('client_status_settings')
 
     @property
     def has_access_support(self):
@@ -283,7 +359,7 @@ class UserProfile(models.Model):
 
     @property
     def has_access_ticket_status_settings(self):
-        return self.check_page_permission('support_status')
+        return self.check_page_permission('ticket_status_settings')
 
     @property
     def has_access_projects(self):
@@ -295,7 +371,7 @@ class UserProfile(models.Model):
 
     @property
     def has_access_project_status_settings(self):
-        return self.check_page_permission('projects_status')
+        return self.check_page_permission('project_status_settings')
 
     @property
     def has_access_hr(self):
@@ -303,27 +379,31 @@ class UserProfile(models.Model):
 
     @property
     def has_access_hr_dashboard(self):
-        return self.check_page_permission('hr') or self.check_page_permission('staff')
+        return self.check_page_permission('hr_dashboard')
 
     @property
     def has_access_staff(self):
         return self.check_page_permission('staff')
 
     @property
+    def has_access_hr_employees(self):
+        return self.check_page_permission('hr_employees')
+
+    @property
     def has_access_hr_attendance(self):
-        return self.check_page_permission('hr')
+        return self.check_page_permission('hr_attendance')
 
     @property
     def has_access_hr_leaves(self):
-        return self.check_page_permission('hr')
+        return self.check_page_permission('hr_leaves')
 
     @property
     def has_access_hr_payroll(self):
-        return self.check_page_permission('hr')
+        return self.check_page_permission('hr_payroll')
 
     @property
     def has_access_hr_settings(self):
-        return self.check_page_permission('hr')
+        return self.check_page_permission('hr_settings')
 
     @property
     def has_access_finance(self):
@@ -331,31 +411,31 @@ class UserProfile(models.Model):
 
     @property
     def has_access_finance_dashboard(self):
-        return self.check_page_permission('finance') or self.check_page_permission('finance_dashboard')
+        return self.check_page_permission('finance_dashboard')
 
     @property
     def has_access_finance_invoices(self):
-        return self.check_page_permission('finance') or self.check_page_permission('finance_invoices')
+        return self.check_page_permission('finance_invoices')
 
     @property
     def has_access_finance_income(self):
-        return self.check_page_permission('finance') or self.check_page_permission('finance_income')
+        return self.check_page_permission('finance_income')
 
     @property
     def has_access_finance_expenses(self):
-        return self.check_page_permission('finance') or self.check_page_permission('finance_expenses')
+        return self.check_page_permission('finance_expenses')
 
     @property
     def has_access_finance_reports(self):
-        return self.check_page_permission('finance') or self.check_page_permission('finance_reports')
+        return self.check_page_permission('finance_reports')
 
     @property
     def has_access_partner_payouts(self):
-        return self.check_page_permission('finance') or self.check_page_permission('partner_payouts')
+        return self.check_page_permission('partner_payouts')
 
     @property
     def has_access_finance_settings(self):
-        return self.check_page_permission('finance') or self.check_page_permission('finance_settings')
+        return self.check_page_permission('finance_settings')
 
     @property
     def has_access_finance_status(self):
@@ -363,11 +443,19 @@ class UserProfile(models.Model):
 
     @property
     def has_access_finance_status_settings(self):
-        return self.check_page_permission('finance_status')
+        return self.check_page_permission('finance_status_settings')
 
     @property
     def has_access_agreements(self):
         return self.check_page_permission('agreements')
+
+    @property
+    def has_access_quotations(self):
+        return self.check_page_permission('quotations')
+
+    @property
+    def has_access_campaign(self):
+        return self.check_page_permission('campaign')
 
     @property
     def has_access_campaigns(self):
@@ -379,35 +467,35 @@ class UserProfile(models.Model):
 
     @property
     def has_access_campaign_status_settings(self):
-        return self.check_page_permission('campaigns_status')
+        return self.check_page_permission('campaign_status_settings')
 
     @property
     def has_access_cms(self):
-        return self.check_page_permission('cms') or self.check_page_permission('content_tracker')
+        return self.check_page_permission('cms')
 
     @property
     def has_access_content_tracker(self):
-        return self.check_page_permission('content_tracker') or self.check_page_permission('cms')
+        return self.check_page_permission('content_tracker')
 
     @property
     def has_access_editor_dashboard(self):
-        return self.check_page_permission('editor_dashboard') or self.check_page_permission('cms') or self.check_page_permission('content_tracker')
+        return self.check_page_permission('editor_dashboard')
 
     @property
     def has_access_editor_board(self):
-        return self.check_page_permission('editor_board') or self.check_page_permission('cms') or self.check_page_permission('content_tracker')
+        return self.check_page_permission('editor_board')
 
     @property
     def has_access_content_settings(self):
-        return self.check_page_permission('content_settings') or self.check_page_permission('cms_settings') or self.check_page_permission('cms')
+        return self.check_page_permission('content_settings')
 
     @property
     def has_access_cms_settings(self):
-        return self.check_page_permission('cms_settings') or self.check_page_permission('content_settings') or self.check_page_permission('cms')
+        return self.check_page_permission('cms_settings')
 
     @property
     def has_access_post_management(self):
-        return self.check_page_permission('post_management') or self.check_page_permission('campaigns')
+        return self.check_page_permission('post_management')
 
     @property
     def has_access_services(self):
@@ -448,50 +536,6 @@ class UserProfile(models.Model):
             self.has_access_departments or
             self.has_access_finance_settings
         )
-
-    def check_edit_permission(self, page_name):
-        role_lower = self.role.lower()
-        if 'admin' in role_lower:
-            return True
-        edit_key = f"{page_name}-edit"
-        try:
-            custom_perms = json.loads(self.custom_permissions_json or '{}')
-            if edit_key in custom_perms:
-                val = custom_perms[edit_key]
-                return val is True or val == True or val == "true"
-        except Exception:
-            pass
-        try:
-            role_obj = StaffRole.objects.get(organization=self.organization, name=self.role)
-            perms = json.loads(role_obj.permissions_json)
-            val = perms.get(edit_key)
-            if val is not None:
-                return val is True or val == True or val == "true"
-        except Exception:
-            pass
-        return self.check_page_permission(page_name)
-
-    def check_delete_permission(self, page_name):
-        role_lower = self.role.lower()
-        if 'admin' in role_lower:
-            return True
-        delete_key = f"{page_name}-delete"
-        try:
-            custom_perms = json.loads(self.custom_permissions_json or '{}')
-            if delete_key in custom_perms:
-                val = custom_perms[delete_key]
-                return val is True or val == True or val == "true"
-        except Exception:
-            pass
-        try:
-            role_obj = StaffRole.objects.get(organization=self.organization, name=self.role)
-            perms = json.loads(role_obj.permissions_json)
-            val = perms.get(delete_key)
-            if val is not None:
-                return val is True or val == True or val == "true"
-        except Exception:
-            pass
-        return self.check_page_permission(page_name)
 
 
 class SystemNotification(models.Model):
