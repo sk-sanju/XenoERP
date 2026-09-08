@@ -112,10 +112,17 @@
 
 {% block extra_js %}
 <script>
+    function getCsrfToken() {
+        const input = document.querySelector('[name=csrfmiddlewaretoken]');
+        if (input && input.value) return input.value;
+        const match = document.cookie.match(/csrftoken=([^;]+)/);
+        return match ? match[1] : '';
+    }
+
     function deleteStaff(profileId, username) {
         if (!confirm(`Are you sure you want to delete staff member "${username}"?`)) return;
 
-        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        const csrfToken = getCsrfToken();
         fetch(`/staff/${profileId}/delete/`, {
             method: 'POST',
             headers: {
@@ -126,17 +133,29 @@
         .then(res => res.json())
         .then(data => {
             if (data.success) {
-                showToast(data.message || 'Staff member deleted.', 'success');
+                if (typeof showToast === 'function') {
+                    showToast(data.message || 'Staff member deleted.', 'success');
+                } else {
+                    alert(data.message || 'Staff member deleted.');
+                }
                 const row = document.getElementById(`staff-row-${profileId}`);
                 if (row) row.remove();
-                setTimeout(() => window.location.reload(), 1000);
+                setTimeout(() => window.location.reload(), 800);
             } else {
-                showToast(data.error || 'Failed to delete staff member.', 'error');
+                if (typeof showToast === 'function') {
+                    showToast(data.error || 'Failed to delete staff member.', 'error');
+                } else {
+                    alert(data.error || 'Failed to delete staff member.');
+                }
             }
         })
         .catch(err => {
             console.error(err);
-            showToast('Network error deleting staff member.', 'error');
+            if (typeof showToast === 'function') {
+                showToast('Network error deleting staff member.', 'error');
+            } else {
+                alert('Network error deleting staff member.');
+            }
         });
     }
 </script>

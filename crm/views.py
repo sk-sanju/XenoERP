@@ -3924,17 +3924,22 @@ def delete_staff_ajax(request, profile_id):
             if profile.user == request.user:
                 return JsonResponse({'success': False, 'error': 'You cannot delete your own profile.'})
 
+            from django.db import transaction
             user = profile.user
-            profile.delete()
-            user.delete()
+            with transaction.atomic():
+                profile.delete()
+                if user:
+                    user.delete()
             return JsonResponse({'success': True, 'message': 'Staff member deleted successfully.'})
         except UserProfile.DoesNotExist:
             return JsonResponse({'success': False, 'error': 'Staff member not found.'})
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': f'Failed to delete staff member: {str(e)}'})
 
     return JsonResponse({'success': False, 'error': 'Invalid request method.'})
 
 
-# â”€â”€ Staff Roles management views â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Staff Roles management views ──────────────────────────────────────────
 
 @login_required
 @page_permission_required('staff_roles')
@@ -3948,7 +3953,7 @@ def staff_roles_view(request):
 @login_required
 @page_permission_required('staff_roles')
 def add_staff_role(request):
-    """Create a new staff role via AJAX POST."""
+    """Create a new staff role via AJAX POST, or redirect to roles list on GET."""
     if request.method == 'POST':
         org = request.user.profile.organization
         name = request.POST.get('name', '').strip()
