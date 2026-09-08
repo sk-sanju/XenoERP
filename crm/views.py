@@ -3924,9 +3924,45 @@ def delete_staff_ajax(request, profile_id):
             if profile.user == request.user:
                 return JsonResponse({'success': False, 'error': 'You cannot delete your own profile.'})
 
-            from django.db import transaction
+            from django.db import transaction, connection
             user = profile.user
             with transaction.atomic():
+                with connection.cursor() as cursor:
+                    # Fetch any legacy hr_employees rows
+                    cursor.execute("SELECT id FROM hr_employees WHERE user_profile_id = %s", [profile.id])
+                    emp_ids = [row[0] for row in cursor.fetchall()]
+                    if emp_ids:
+                        cursor.execute("UPDATE hr_employees SET reporting_manager_id = NULL WHERE reporting_manager_id = ANY(%s)", [emp_ids])
+                        cursor.execute("DELETE FROM hr_employee_documents WHERE employee_id = ANY(%s)", [emp_ids])
+                        cursor.execute("DELETE FROM hr_attendance_corrections WHERE employee_id = ANY(%s)", [emp_ids])
+                        cursor.execute("DELETE FROM hr_onboarding_processes WHERE employee_id = ANY(%s)", [emp_ids])
+                        cursor.execute("DELETE FROM hr_performance_goals WHERE employee_id = ANY(%s)", [emp_ids])
+                        cursor.execute("DELETE FROM hr_resignations WHERE employee_id = ANY(%s)", [emp_ids])
+                        cursor.execute("DELETE FROM hr_leave_balances WHERE employee_id = ANY(%s)", [emp_ids])
+                        cursor.execute("DELETE FROM hr_performance_reviews WHERE employee_id = ANY(%s)", [emp_ids])
+                        cursor.execute("DELETE FROM hr_attendance WHERE employee_id = ANY(%s)", [emp_ids])
+                        cursor.execute("DELETE FROM hr_leave_requests WHERE employee_id = ANY(%s)", [emp_ids])
+                        cursor.execute("DELETE FROM hr_payrolls WHERE employee_id = ANY(%s)", [emp_ids])
+                        cursor.execute("DELETE FROM hr_employees WHERE id = ANY(%s)", [emp_ids])
+
+                    # Clean up foreign keys referencing user_profiles.id
+                    cursor.execute("UPDATE hr_branches SET manager_id = NULL WHERE manager_id = %s", [profile.id])
+                    cursor.execute("UPDATE hr_candidate_interviews SET interviewer_id = NULL WHERE interviewer_id = %s", [profile.id])
+                    cursor.execute("UPDATE hr_audit_logs SET actor_id = NULL WHERE actor_id = %s", [profile.id])
+                    cursor.execute("UPDATE hr_employee_documents SET verified_by_id = NULL WHERE verified_by_id = %s", [profile.id])
+                    cursor.execute("UPDATE hr_attendance_corrections SET reviewed_by_id = NULL WHERE reviewed_by_id = %s", [profile.id])
+                    cursor.execute("DELETE FROM hr_notifications WHERE recipient_id = %s", [profile.id])
+                    cursor.execute("UPDATE hr_onboarding_tasks SET assigned_to_id = NULL WHERE assigned_to_id = %s", [profile.id])
+                    cursor.execute("UPDATE hr_performance_reviews SET reviewer_id = NULL WHERE reviewer_id = %s", [profile.id])
+                    cursor.execute("UPDATE hr_leave_requests SET hr_approval_by_id = NULL WHERE hr_approval_by_id = %s", [profile.id])
+                    cursor.execute("UPDATE hr_leave_requests SET manager_approval_by_id = NULL WHERE manager_approval_by_id = %s", [profile.id])
+                    cursor.execute("UPDATE quotations SET prepared_by_id = NULL WHERE prepared_by_id = %s", [profile.id])
+                    cursor.execute("DELETE FROM quotation_activities WHERE user_id = %s", [profile.id])
+                    cursor.execute("UPDATE content_items SET editor_id = NULL WHERE editor_id = %s", [profile.id])
+                    cursor.execute("UPDATE tickets SET assignee_id = NULL WHERE assignee_id = %s", [profile.id])
+                    cursor.execute("UPDATE leads SET owner_id = NULL WHERE owner_id = %s", [profile.id])
+                    cursor.execute("DELETE FROM tasks_assignees WHERE userprofile_id = %s", [profile.id])
+
                 profile.delete()
                 if user:
                     user.delete()
