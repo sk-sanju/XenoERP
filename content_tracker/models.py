@@ -29,7 +29,6 @@ class ContentItem(models.Model):
     status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='Pending')
     priority = models.CharField(max_length=50, choices=PRIORITY_CHOICES, default='Medium')
     notes = models.TextField(blank=True, null=True)
-    campaign_run_date = models.DateField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

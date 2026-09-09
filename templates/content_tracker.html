@@ -153,7 +153,6 @@
             <th class="py-3 px-4 cursor-pointer hover:bg-slate-200/60" onclick="sortByColumn('date_received')">Date Received</th>
             <th class="py-3 px-4 cursor-pointer hover:bg-slate-200/60" onclick="sortByColumn('due_date')">Due Date</th>
             <th class="py-3 px-4 cursor-pointer hover:bg-slate-200/60" onclick="sortByColumn('status')">Status</th>
-            <th class="py-3 px-4 cursor-pointer hover:bg-slate-200/60" onclick="sortByColumn('campaign_run_date')">Campaign Run Date</th>
             <th class="py-3 px-4 cursor-pointer hover:bg-slate-200/60" onclick="sortByColumn('priority')">Priority</th>
             <th class="py-3 px-4">Notes</th>
             {% if request.user.profile.has_edit_content_tracker or request.user.profile.has_delete_content_tracker or request.user.is_superuser %}
@@ -234,7 +233,6 @@
               </span>
               {% endif %}
             </td>
-            <td class="py-3 px-4 font-mono text-slate-600 whitespace-nowrap">{{ item.campaign_run_date|date:"Y-m-d"|default:"-" }}</td>
             <td class="py-3 px-4 whitespace-nowrap">
               {% if item.priority == 'Low' %}
                 <span class="text-slate-500 font-semibold">• Low</span>
@@ -261,7 +259,7 @@
                 <div id="dropdown-menu-{{ item.id }}" class="hidden absolute right-0 mt-1 w-40 rounded-xl bg-white border border-slate-200 shadow-xl z-50 divide-y divide-slate-100 text-xs">
                   {% if request.user.profile.has_edit_content_tracker or request.user.is_superuser %}
                   <div class="py-1">
-                    <button type="button" onclick="openEditModal({{ item.id }}, '{{ item.client.id|escapejs }}', '{{ item.video_title|escapejs }}', '{{ item.editor.id|default:''|escapejs }}', '{{ item.date_received|date:'Y-m-d'|escapejs }}', '{{ item.due_date|date:'Y-m-d'|escapejs }}', '{{ item.status|escapejs }}', '{{ item.priority|escapejs }}', '{{ item.notes|escapejs }}', '{{ item.campaign_run_date|date:'Y-m-d'|escapejs }}')" class="w-full text-left px-3 py-2 text-slate-700 hover:bg-slate-50 flex items-center gap-2 font-medium">
+                    <button type="button" onclick="openEditModal({{ item.id }}, '{{ item.client.id|escapejs }}', '{{ item.video_title|escapejs }}', '{{ item.editor.id|default:''|escapejs }}', '{{ item.date_received|date:'Y-m-d'|escapejs }}', '{{ item.due_date|date:'Y-m-d'|escapejs }}', '{{ item.status|escapejs }}', '{{ item.priority|escapejs }}', '{{ item.notes|escapejs }}')" class="w-full text-left px-3 py-2 text-slate-700 hover:bg-slate-50 flex items-center gap-2 font-medium">
                       <i data-lucide="edit" class="w-3.5 h-3.5 text-slate-500"></i> Edit
                     </button>
                     <button type="button" onclick="duplicateItem({{ item.id }})" class="w-full text-left px-3 py-2 text-slate-700 hover:bg-slate-50 flex items-center gap-2 font-medium">
@@ -433,11 +431,6 @@
         <input type="date" name="due_date" id="form-due-date" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none"/>
       </div>
 
-      <div>
-        <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Campaign Run Date</label>
-        <input type="date" name="campaign_run_date" id="form-campaign-run-date" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none"/>
-      </div>
-
       <!-- Notes -->
       <div class="md:col-span-2">
         <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Notes</label>
@@ -494,7 +487,7 @@
       document.getElementById('content-modal').classList.remove('hidden');
   }
 
-  function openEditModal(id, clientId, title, editorId, dateRecd, dueDate, status, priority, notes, campaignRunDate) {
+  function openEditModal(id, clientId, title, editorId, dateRecd, dueDate, status, priority, notes) {
       document.getElementById('form-item-id').value = id;
       document.getElementById('form-client-id').value = clientId;
       document.getElementById('form-video-title').value = title;
@@ -504,7 +497,6 @@
       document.getElementById('form-status').value = status;
       document.getElementById('form-priority').value = priority;
       document.getElementById('form-notes').value = notes || '';
-      document.getElementById('form-campaign-run-date').value = campaignRunDate || '';
       
       document.getElementById('modal-title').innerText = 'Edit Content Item';
       document.getElementById('content-modal').classList.remove('hidden');
@@ -809,7 +801,7 @@
   function downloadTemplate() {
       const headers = [
           "ID", "Client", "Video Title", "Editor", 
-          "Date Received", "Due Date", "Status", "Campaign Run Date", 
+          "Date Received", "Due Date", "Status", 
           "Priority", "Notes"
       ];
       const csvContent = headers.join(",") + "\n";
