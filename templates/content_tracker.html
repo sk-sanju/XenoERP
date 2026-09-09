@@ -21,7 +21,7 @@
 
     <!-- Action Buttons -->
     <div class="flex items-center gap-2 flex-wrap sm:flex-nowrap shrink-0">
-      {% if request.user.profile.has_edit_content_tracker or request.user.profile.has_access_content_tracker or request.user.is_superuser %}
+      {% if request.user.profile.has_edit_content_tracker or request.user.is_superuser %}
       <button onclick="downloadTemplate()" class="px-3.5 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl font-semibold text-xs flex items-center gap-1.5 hover:bg-slate-50 transition-all shadow-xs">
         <i data-lucide="file-text" class="w-4 h-4 text-slate-500"></i>
         <span>Template</span>
@@ -34,6 +34,8 @@
         <i data-lucide="upload" class="w-4 h-4 text-slate-500"></i>
         <span>Import</span>
       </button>
+      {% endif %}
+      {% if request.user.profile.has_access_content_tracker or request.user.is_superuser %}
       <button onclick="exportToCSV()" class="px-3.5 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl font-semibold text-xs flex items-center gap-1.5 hover:bg-slate-50 transition-all shadow-xs">
         <i data-lucide="download" class="w-4 h-4 text-slate-500"></i>
         <span>Export</span>
@@ -84,8 +86,6 @@
           {% endfor %}
         </select>
       </div>
-
-
 
       <!-- Priority Filter -->
       <div>
@@ -141,11 +141,11 @@
       <table class="w-full text-left border-collapse" id="content-items-table">
         <thead>
           <tr class="bg-slate-100/90 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider select-none sticky top-0 z-10 whitespace-nowrap">
+            {% if request.user.profile.has_delete_content_tracker or request.user.is_superuser %}
             <th class="py-3 px-4 w-10 text-center">
-              {% if request.user.profile.has_delete_content_tracker or request.user.is_superuser %}
               <input type="checkbox" id="check-all" class="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500 cursor-pointer" onclick="toggleSelectAll(this)"/>
-              {% endif %}
             </th>
+            {% endif %}
             <th class="py-3 px-4 cursor-pointer hover:bg-slate-200/60" onclick="sortByColumn('id')">ID</th>
             <th class="py-3 px-4 cursor-pointer hover:bg-slate-200/60" onclick="sortByColumn('client__company')">Client</th>
             <th class="py-3 px-4 cursor-pointer hover:bg-slate-200/60" onclick="sortByColumn('video_title')">Video Title</th>
@@ -157,19 +157,17 @@
             <th class="py-3 px-4">Notes</th>
             {% if request.user.profile.has_edit_content_tracker or request.user.profile.has_delete_content_tracker or request.user.is_superuser %}
             <th class="py-3 px-4 text-center w-20">Actions</th>
-            {% else %}
-            <th class="py-3 px-4 text-center w-20"></th>
             {% endif %}
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-200/70 text-xs text-slate-800">
           {% for item in page_obj %}
           <tr class="hover:bg-slate-50/80 transition-colors" id="row-{{ item.id }}">
+            {% if request.user.profile.has_delete_content_tracker or request.user.is_superuser %}
             <td class="py-3 px-4 text-center">
-              {% if request.user.profile.has_delete_content_tracker or request.user.is_superuser %}
               <input type="checkbox" name="item_ids" value="{{ item.id }}" class="row-checkbox w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500 cursor-pointer" onclick="updateBulkBar()"/>
-              {% endif %}
             </td>
+            {% endif %}
             <td class="py-3 px-4 font-mono font-bold text-slate-400 whitespace-nowrap">#{{ item.id }}</td>
             <td class="py-3 px-4 font-bold text-slate-900 whitespace-nowrap">{{ item.client.company }}</td>
             <td class="py-3 px-4 font-semibold text-primary-600 max-w-[200px] truncate" title="{{ item.video_title }}">{{ item.video_title }}</td>
@@ -183,7 +181,7 @@
             <td class="py-3 px-4 font-mono text-slate-600 whitespace-nowrap">{{ item.date_received|date:"Y-m-d"|default:"-" }}</td>
             <td class="py-3 px-4 font-mono font-bold text-slate-700 whitespace-nowrap">{{ item.due_date|date:"Y-m-d"|default:"-" }}</td>
             <td class="py-3 px-4 whitespace-nowrap">
-              {% if request.user.profile.has_edit_content_tracker or request.user.is_superuser %}
+              {% if request.user.profile.has_edit_content_tracker or request.user.is_superuser or 'editor' in request.user.profile.role|lower %}
               <div class="relative inline-flex items-center">
                 <select onchange="updateInlineStatus(this, {{ item.id }})"
                   data-previous-value="{{ item.status }}"
@@ -249,8 +247,8 @@
             <td class="py-3 px-4 max-w-[140px] truncate text-slate-500 cursor-help" title="{{ item.notes }}">
               {{ item.notes|default:"-" }}
             </td>
+            {% if request.user.profile.has_edit_content_tracker or request.user.profile.has_delete_content_tracker or request.user.is_superuser %}
             <td class="py-3 px-4 text-center whitespace-nowrap">
-              {% if request.user.profile.has_edit_content_tracker or request.user.profile.has_delete_content_tracker or request.user.is_superuser %}
               <!-- Actions Dropdown -->
               <div class="relative inline-block text-left" id="dropdown-parent-{{ item.id }}">
                 <button onclick="toggleActionDropdown(event, {{ item.id }})" class="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all">
@@ -281,8 +279,8 @@
                   {% endif %}
                 </div>
               </div>
-              {% endif %}
             </td>
+            {% endif %}
           </tr>
           {% empty %}
           <tr>
@@ -291,7 +289,7 @@
                 <i data-lucide="video-off" class="w-12 h-12 text-slate-300 mb-2"></i>
                 <h4 class="font-bold text-slate-800 text-sm">No Content Items Found</h4>
                 <p class="text-slate-500 text-xs mt-1 mb-3">Try resetting filters or adding new content records.</p>
-                {% if request.user.profile.has_edit_content_tracker or request.user.profile.has_access_content_tracker or request.user.is_superuser %}
+                {% if request.user.profile.has_edit_content_tracker or request.user.is_superuser %}
                 <button onclick="openAddModal()" class="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-semibold text-xs flex items-center gap-1.5 transition-all shadow-xs shadow-primary-500/20 active:scale-98">
                   <i data-lucide="plus-circle" class="w-4 h-4"></i>
                   <span>Add Content</span>

@@ -4592,6 +4592,12 @@ def content_tracker_view(request):
 @page_permission_required('content_tracker')
 def add_content_item(request):
     """Add a new client video content item via dedicated form page."""
+    if not (request.user.is_superuser or request.user.profile.has_edit_content_tracker):
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'success': False, 'error': 'You do not have permission to add content.'}, status=403)
+        messages.error(request, 'You do not have permission to add content.')
+        return redirect('content_tracker')
+
     org = request.user.profile.organization
     raw_clients = Lead.objects.filter(organization=org, is_client=True)
     seen_companies = set()
@@ -4668,6 +4674,12 @@ def add_content_item(request):
 @page_permission_required('content_tracker')
 def edit_content_item(request, item_id):
     """Edit a content item via dedicated form page."""
+    if not (request.user.is_superuser or request.user.profile.has_edit_content_tracker):
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'success': False, 'error': 'You do not have permission to edit content.'}, status=403)
+        messages.error(request, 'You do not have permission to edit content.')
+        return redirect('content_tracker')
+
     org = request.user.profile.organization
     from crm.models import ContentItem
     clients = Lead.objects.filter(organization=org, is_client=True)
@@ -4757,6 +4769,9 @@ def edit_content_item(request, item_id):
 @page_permission_required('content_tracker')
 def delete_content_item(request, item_id):
     """Remove a content item."""
+    if not (request.user.is_superuser or request.user.profile.has_delete_content_tracker):
+        return JsonResponse({'success': False, 'error': 'You do not have permission to delete content.'}, status=403)
+
     if request.method == 'POST':
         org = request.user.profile.organization
         from crm.models import ContentItem
@@ -4773,6 +4788,9 @@ def delete_content_item(request, item_id):
 @page_permission_required('content_tracker')
 def duplicate_content_item(request, item_id):
     """Create a duplicated content item entry."""
+    if not (request.user.is_superuser or request.user.profile.has_edit_content_tracker):
+        return JsonResponse({'success': False, 'error': 'You do not have permission to duplicate content.'}, status=403)
+
     if request.method == 'POST':
         org = request.user.profile.organization
         from crm.models import ContentItem
@@ -4807,7 +4825,7 @@ def mark_content_complete(request, item_id):
 @login_required
 @page_permission_required('content_tracker')
 def update_content_item_status(request, item_id):
-    """Inline update status of a content item via AJAX."""
+    """Inline update status of a content item via AJAX (accessible to Editors and Content Managers)."""
     if request.method == 'POST':
         org = request.user.profile.organization
         from crm.models import ContentItem
@@ -4837,6 +4855,9 @@ def update_content_item_status(request, item_id):
 @page_permission_required('content_tracker')
 def bulk_delete_content_items(request):
     """Batch deletion of multiple content items."""
+    if not (request.user.is_superuser or request.user.profile.has_delete_content_tracker):
+        return JsonResponse({'success': False, 'error': 'You do not have permission to delete content.'}, status=403)
+
     if request.method == 'POST':
         org = request.user.profile.organization
         from crm.models import ContentItem
@@ -4857,6 +4878,9 @@ def bulk_delete_content_items(request):
 @page_permission_required('content_tracker')
 def import_content_items(request):
     """Import content tracker items from a CSV file."""
+    if not (request.user.is_superuser or request.user.profile.has_edit_content_tracker):
+        return JsonResponse({'success': False, 'error': 'You do not have permission to import content.'}, status=403)
+
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'Invalid request method.'})
 
@@ -4866,6 +4890,7 @@ def import_content_items(request):
 
     if not csv_file.name.endswith('.csv'):
         return JsonResponse({'success': False, 'error': 'Uploaded file is not a CSV.'})
+
 
     import io
     try:
