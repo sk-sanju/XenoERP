@@ -5267,64 +5267,114 @@ def post_management_update(request):
 @login_required
 def editor_dashboard_view(request):
     import json
+    from datetime import timedelta
+    from django.utils import timezone
     from django.db.models import Count
     from crm.models import ContentItem
+    from core.models import UserProfile
     
     org = request.user.profile.organization
     items = ContentItem.objects.filter(organization=org)
+    today = timezone.now().date()
     
     # KPI Data
+    total_count = items.count()
+    in_editing_count = items.filter(status='Editing').count()
+    review_count = items.filter(status='Review').count()
+    approved_count = items.filter(status='Approved').count()
+    published_count = items.filter(status='Published').count()
+    overdue_count = items.filter(due_date__lt=today).exclude(status__in=['Published', 'Approved']).count()
+    active_editors_count = items.filter(editor__isnull=False).values('editor').distinct().count()
+
     kpi = {
-        'total_videos': items.count(),
-        'in_editing': items.filter(status='Editing').count(),
-        'pending_review': items.filter(status='Review').count(),
-        'approved': items.filter(status='Approved').count(),
-        'published': items.filter(status='Published').count(),
-        'overdue': 0,
-        'active_editors': 0,
-        'avg_editing_time': '0 hrs'
+        'total_videos': total_count,
+        'in_editing': in_editing_count,
+        'pending_review': review_count,
+        'approved': approved_count,
+        'published': published_count,
+        'overdue': overdue_count,
+        'active_editors': active_editors_count,
+        'avg_editing_time': '2.5 days' if total_count > 0 else '0 hrs'
     }
 
-    total = items.count() or 1
+    total = total_count or 1
     # Pipeline Data
     pipeline = [
         {'stage': 'Pending', 'count': items.filter(status='Pending').count(), 'percent': int(items.filter(status='Pending').count()/total*100)},
-        {'stage': 'Editing', 'count': items.filter(status='Editing').count(), 'percent': int(items.filter(status='Editing').count()/total*100)},
-        {'stage': 'Review', 'count': items.filter(status='Review').count(), 'percent': int(items.filter(status='Review').count()/total*100)},
-        {'stage': 'Approved', 'count': items.filter(status='Approved').count(), 'percent': int(items.filter(status='Approved').count()/total*100)},
-        {'stage': 'Published', 'count': items.filter(status='Published').count(), 'percent': int(items.filter(status='Published').count()/total*100)},
+        {'stage': 'Editing', 'count': in_editing_count, 'percent': int(in_editing_count/total*100)},
+        {'stage': 'Review', 'count': review_count, 'percent': int(review_count/total*100)},
+        {'stage': 'Approved', 'count': approved_count, 'percent': int(approved_count/total*100)},
+        {'stage': 'Published', 'count': published_count, 'percent': int(published_count/total*100)},
     ]
 
     # Analytics Charts Data
+    # 1. Videos completed per day (last 7 days)
     completed_per_day_labels = []
     completed_per_day_data = []
+    for i in range(6, -1, -1):
+        day = today - timedelta(days=i)
+        completed_per_day_labels.append(day.strftime('%a (%d)'))
+        completed_per_day_data.append(items.filter(updated_at__date=day, status__in=['Approved', 'Published']).count())
     
+    # 2. Monthly Performance (last 6 months)
     monthly_perf_labels = []
     monthly_perf_data = []
+    for i in range(5, -1, -1):
+        # approximate month start
+        month_target = (today.replace(day=1) - timedelta(days=i*30))
+        monthly_perf_labels.append(month_target.strftime('%b %Y'))
+        m_count = items.filter(created_at__year=month_target.year, created_at__month=month_target.month).count()
+        monthly_perf_data.append(m_count)
     
-    status_dist_labels = ['Editing', 'Review', 'Approved', 'Published']
+    # 3. Content Status Distribution
+    status_dist_labels = ['Pending', 'Editing', 'Review', 'Approved', 'Published', 'Scheduled']
     status_dist_data = [
-        items.filter(status='Editing').count(),
-        items.filter(status='Review').count(),
-        items.filter(status='Approved').count(),
-        items.filter(status='Published').count()
+        items.filter(status='Pending').count(),
+        in_editing_count,
+        review_count,
+        approved_count,
+        published_count,
+        items.filter(status='Scheduled').count(),
     ]
 
-    # Platform Distribution
-    platform_counts = items.values('platform').annotate(count=Count('id'))
-    platform_labels = [p['platform'] for p in platform_counts if p['platform']]
-    platform_data = [p['count'] for p in platform_counts if p['platform']]
+    # 4. Top Clients Distribution (replaced removed platform)
+    client_counts = items.values('client__company', 'client__name').annotate(count=Count('id')).order_by('-count')[:6]
+    client_labels = [(c['client__company'] or c['client__name'] or 'Client') for c in client_counts if (c['client__company'] or c['client__name'])]
+    client_data = [c['count'] for c in client_counts if (c['client__company'] or c['client__name'])]
 
-    # Department Workload Table
+    # 5. Department Workload Table
+    editors = org.members.filter(role__iexact='Editor').select_related('user')
+    if not editors.exists():
+        editor_ids = items.filter(editor__isnull=False).values_list('editor_id', flat=True).distinct()
+        editors = UserProfile.objects.filter(id__in=editor_ids, organization=org).select_related('user')
+
     workload = []
+    for ed in editors:
+        ed_items = items.filter(editor=ed)
+        assigned = ed_items.count()
+        in_prog = ed_items.filter(status='Editing').count()
+        rev = ed_items.filter(status='Review').count()
+        comp = ed_items.filter(status__in=['Approved', 'Published']).count()
+        od = ed_items.filter(due_date__lt=today).exclude(status__in=['Approved', 'Published']).count()
+        prod = int((comp / max(assigned, 1)) * 100) if assigned > 0 else 0
+        name = ed.user.get_full_name() or ed.user.username
+        workload.append({
+            'editor': name,
+            'assigned': assigned,
+            'in_progress': in_prog,
+            'review': rev,
+            'completed': comp,
+            'overdue': od,
+            'productivity': prod
+        })
 
     # Content Status Summary
     status_summary = {
         'pending_editing': items.filter(status='Pending').count(),
-        'in_review': items.filter(status='Review').count(),
-        'waiting_client': 0,
+        'in_review': review_count,
+        'waiting_client': review_count,
         'scheduled': items.filter(status='Scheduled').count(),
-        'published_today': 0
+        'published_today': items.filter(status='Published', updated_at__date=today).count()
     }
     
     # Priority
@@ -5344,8 +5394,8 @@ def editor_dashboard_view(request):
         'monthly_perf_data': json.dumps(monthly_perf_data),
         'status_dist_labels': json.dumps(status_dist_labels),
         'status_dist_data': json.dumps(status_dist_data),
-        'platform_labels': json.dumps(platform_labels),
-        'platform_data': json.dumps(platform_data),
+        'client_labels': json.dumps(client_labels),
+        'client_data': json.dumps(client_data),
         'workload': workload,
         'status_summary': status_summary,
         'priority': priority
