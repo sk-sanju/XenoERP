@@ -141,7 +141,7 @@
                     <option value="all">All Assignees</option>
                     <option value="unassigned">Unassigned</option>
                     {% for member in staff %}
-                    <option value="{{ member.id }}">{{ member.user.get_full_name|default:member.user.username }}</option>
+                    <option value="{{ member.id }}">{{ member.user.get_full_name|default:member.user.username }}{% if member.role %} ({{ member.role }}){% endif %}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -209,7 +209,7 @@
                 <select name="assignee" class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-3 py-2 text-body-sm focus:ring-1 focus:ring-primary focus:border-primary">
                     <option value="">Unassigned</option>
                     {% for member in staff %}
-                    <option value="{{ member.id }}">{{ member.user.get_full_name|default:member.user.username }}</option>
+                    <option value="{{ member.id }}">{{ member.user.get_full_name|default:member.user.username }}{% if member.role %} ({{ member.role }}){% endif %}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -275,7 +275,7 @@
                 <select id="edit-assignee" name="assignee" class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-3 py-2 text-body-sm focus:ring-1 focus:ring-primary focus:border-primary">
                     <option value="">Unassigned</option>
                     {% for member in staff %}
-                    <option value="{{ member.id }}">{{ member.user.get_full_name|default:member.user.username }}</option>
+                    <option value="{{ member.id }}">{{ member.user.get_full_name|default:member.user.username }}{% if member.role %} ({{ member.role }}){% endif %}</option>
                     {% endfor %}
                 </select>
             </div>

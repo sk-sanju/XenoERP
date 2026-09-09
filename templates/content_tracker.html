@@ -21,7 +21,7 @@
 
     <!-- Action Buttons -->
     <div class="flex items-center gap-2 flex-wrap sm:flex-nowrap shrink-0">
-      {% if request.user.profile.has_edit_content_tracker %}
+      {% if request.user.profile.has_edit_content_tracker or request.user.profile.has_access_content_tracker or request.user.is_superuser %}
       <button onclick="downloadTemplate()" class="px-3.5 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl font-semibold text-xs flex items-center gap-1.5 hover:bg-slate-50 transition-all shadow-xs">
         <i data-lucide="file-text" class="w-4 h-4 text-slate-500"></i>
         <span>Template</span>
@@ -70,7 +70,7 @@
         <select name="editor_filter" class="w-full bg-slate-50/80 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500">
           <option value="">All Editors</option>
           {% for editor in editors %}
-          <option value="{{ editor.id }}" {% if editor_filter == editor.id|stringformat:"i" %}selected{% endif %}>{{ editor.user.get_full_name|default:editor.user.username }}</option>
+          <option value="{{ editor.id }}" {% if editor_filter == editor.id|stringformat:"i" %}selected{% endif %}>{{ editor.user.get_full_name|default:editor.user.username }}{% if editor.role %} ({{ editor.role }}){% endif %}</option>
           {% endfor %}
         </select>
       </div>
@@ -131,7 +131,7 @@
     </form>
   </div>
 
-  {% if request.user.profile.has_delete_content_tracker %}
+  {% if request.user.profile.has_delete_content_tracker or request.user.is_superuser %}
   <!-- Bulk Actions Bar -->
   <div id="bulk-actions-bar" class="hidden p-4 rounded-2xl bg-primary-50 border border-primary-200 flex items-center justify-between text-xs animate-fade-in shadow-xs">
     <span class="font-bold text-primary-800" id="checked-count-text">0 items selected</span>
@@ -150,7 +150,7 @@
         <thead>
           <tr class="bg-slate-100/90 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider select-none sticky top-0 z-10 whitespace-nowrap">
             <th class="py-3 px-4 w-10 text-center">
-              {% if request.user.profile.has_delete_content_tracker %}
+              {% if request.user.profile.has_delete_content_tracker or request.user.is_superuser %}
               <input type="checkbox" id="check-all" class="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500 cursor-pointer" onclick="toggleSelectAll(this)"/>
               {% endif %}
             </th>
@@ -169,7 +169,7 @@
             <th class="py-3 px-4 cursor-pointer hover:bg-slate-200/60" onclick="sortByColumn('priority')">Priority</th>
             <th class="py-3 px-4 cursor-pointer hover:bg-slate-200/60" onclick="sortByColumn('salary')">Salary</th>
             <th class="py-3 px-4">Notes</th>
-            {% if request.user.profile.has_edit_content_tracker or request.user.profile.has_delete_content_tracker %}
+            {% if request.user.profile.has_edit_content_tracker or request.user.profile.has_delete_content_tracker or request.user.is_superuser %}
             <th class="py-3 px-4 text-center w-20">Actions</th>
             {% else %}
             <th class="py-3 px-4 text-center w-20"></th>
@@ -180,7 +180,7 @@
           {% for item in page_obj %}
           <tr class="hover:bg-slate-50/80 transition-colors" id="row-{{ item.id }}">
             <td class="py-3 px-4 text-center">
-              {% if request.user.profile.has_delete_content_tracker %}
+              {% if request.user.profile.has_delete_content_tracker or request.user.is_superuser %}
               <input type="checkbox" name="item_ids" value="{{ item.id }}" class="row-checkbox w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500 cursor-pointer" onclick="updateBulkBar()"/>
               {% endif %}
             </td>
@@ -233,14 +233,14 @@
               {{ item.notes|default:"-" }}
             </td>
             <td class="py-3 px-4 text-center whitespace-nowrap">
-              {% if request.user.profile.has_edit_content_tracker or request.user.profile.has_delete_content_tracker %}
+              {% if request.user.profile.has_edit_content_tracker or request.user.profile.has_delete_content_tracker or request.user.is_superuser %}
               <!-- Actions Dropdown -->
               <div class="relative inline-block text-left" id="dropdown-parent-{{ item.id }}">
                 <button onclick="toggleActionDropdown(event, {{ item.id }})" class="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all">
                   <i data-lucide="more-vertical" class="w-4 h-4"></i>
                 </button>
                 <div id="dropdown-menu-{{ item.id }}" class="hidden absolute right-0 mt-1 w-40 rounded-xl bg-white border border-slate-200 shadow-xl z-50 divide-y divide-slate-100 text-xs">
-                  {% if request.user.profile.has_edit_content_tracker %}
+                  {% if request.user.profile.has_edit_content_tracker or request.user.is_superuser %}
                   <div class="py-1">
                     <button type="button" onclick="openEditModal({{ item.id }}, '{{ item.client.id|escapejs }}', '{{ item.video_title|escapejs }}', '{{ item.editor.id|default:''|escapejs }}', '{{ item.date_received|date:'Y-m-d'|escapejs }}', '{{ item.due_date|date:'Y-m-d'|escapejs }}', '{{ item.status|escapejs }}', '{{ item.platform|escapejs }}', '{{ item.post_type|escapejs }}', '{{ item.priority|escapejs }}', '{{ item.notes|escapejs }}', '{{ item.client_month|escapejs }}', '{{ item.editor_month|escapejs }}', '{{ item.campaign_run_date|date:'Y-m-d'|escapejs }}', '{{ item.salary|escapejs }}')" class="w-full text-left px-3 py-2 text-slate-700 hover:bg-slate-50 flex items-center gap-2 font-medium">
                       <i data-lucide="edit" class="w-3.5 h-3.5 text-slate-500"></i> Edit
@@ -255,7 +255,7 @@
                     </button>
                   </div>
                   {% endif %}
-                  {% if request.user.profile.has_delete_content_tracker %}
+                  {% if request.user.profile.has_delete_content_tracker or request.user.is_superuser %}
                   <div class="py-1">
                     <button type="button" onclick="deleteItem({{ item.id }})" class="w-full text-left px-3 py-2 text-rose-600 hover:bg-rose-50 flex items-center gap-2 font-semibold">
                       <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Delete
@@ -273,7 +273,13 @@
               <div class="flex flex-col items-center justify-center">
                 <i data-lucide="video-off" class="w-12 h-12 text-slate-300 mb-2"></i>
                 <h4 class="font-bold text-slate-800 text-sm">No Content Items Found</h4>
-                <p class="text-slate-500 text-xs mt-1">Try resetting filters or adding new content records.</p>
+                <p class="text-slate-500 text-xs mt-1 mb-3">Try resetting filters or adding new content records.</p>
+                {% if request.user.profile.has_edit_content_tracker or request.user.profile.has_access_content_tracker or request.user.is_superuser %}
+                <button onclick="openAddModal()" class="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-semibold text-xs flex items-center gap-1.5 transition-all shadow-xs shadow-primary-500/20 active:scale-98">
+                  <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                  <span>Add Content</span>
+                </button>
+                {% endif %}
               </div>
             </td>
           </tr>
