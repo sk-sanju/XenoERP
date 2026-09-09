@@ -247,7 +247,7 @@ class UserProfile(models.Model):
                 'hr', 'finance', 'agreements', 'quotations', 'campaigns', 'cms', 'staff', 'services',
                 'lead_statuses', 'leads_settings', 'clients_status', 'projects_status',
                 'campaigns_status', 'calendar_status', 'support_status', 'finance_status',
-                'content_tracker', 'editor_dashboard', 'editor_board', 'content_settings',
+                'content_tracker', 'editor_dashboard', 'content_settings',
                 'cms_settings', 'post_management'
             ]
 
@@ -489,9 +489,6 @@ class UserProfile(models.Model):
     def has_access_editor_dashboard(self):
         return self.check_page_permission('editor_dashboard')
 
-    @property
-    def has_access_editor_board(self):
-        return self.check_page_permission('editor_board')
 
     @property
     def has_access_content_settings(self):
