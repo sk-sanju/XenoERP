@@ -52,25 +52,7 @@
           </select>
         </div>
 
-        <!-- Platform -->
-        <div>
-          <label class="block text-label-md font-label-md text-outline uppercase mb-1">Platform</label>
-          <select name="platform" class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-3 py-2 text-body-sm focus:ring-1 focus:ring-primary focus:border-primary">
-            {% for platform in platforms %}
-            <option value="{{ platform }}" {% if form_data.platform == platform %}selected{% endif %}>{{ platform }}</option>
-            {% endfor %}
-          </select>
-        </div>
 
-        <!-- Post Type -->
-        <div>
-          <label class="block text-label-md font-label-md text-outline uppercase mb-1">Post Type</label>
-          <select name="post_type" class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-3 py-2 text-body-sm focus:ring-1 focus:ring-primary focus:border-primary">
-            {% for post in post_types %}
-            <option value="{{ post }}" {% if form_data.post_type == post or not form_data.post_type and post == 'Reel' %}selected{% endif %}>{{ post }}</option>
-            {% endfor %}
-          </select>
-        </div>
 
         <!-- Status -->
         <div>

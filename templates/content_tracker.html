@@ -85,15 +85,7 @@
         </select>
       </div>
 
-      <!-- Platform Filter -->
-      <div>
-        <select name="platform_filter" class="w-full bg-slate-50/80 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500">
-          <option value="">All Platforms</option>
-          {% for platform in platforms %}
-          <option value="{{ platform }}" {% if platform_filter == platform %}selected{% endif %}>{{ platform }}</option>
-          {% endfor %}
-        </select>
-      </div>
+
 
       <!-- Priority Filter -->
       <div>
@@ -156,18 +148,13 @@
             </th>
             <th class="py-3 px-4 cursor-pointer hover:bg-slate-200/60" onclick="sortByColumn('id')">ID</th>
             <th class="py-3 px-4 cursor-pointer hover:bg-slate-200/60" onclick="sortByColumn('client__company')">Client</th>
-            <th class="py-3 px-4 cursor-pointer hover:bg-slate-200/60" onclick="sortByColumn('client_month')">Client Month</th>
             <th class="py-3 px-4 cursor-pointer hover:bg-slate-200/60" onclick="sortByColumn('video_title')">Video Title</th>
             <th class="py-3 px-4 cursor-pointer hover:bg-slate-200/60" onclick="sortByColumn('editor__user__username')">Editor</th>
-            <th class="py-3 px-4 cursor-pointer hover:bg-slate-200/60" onclick="sortByColumn('editor_month')">Editor Month</th>
             <th class="py-3 px-4 cursor-pointer hover:bg-slate-200/60" onclick="sortByColumn('date_received')">Date Received</th>
             <th class="py-3 px-4 cursor-pointer hover:bg-slate-200/60" onclick="sortByColumn('due_date')">Due Date</th>
             <th class="py-3 px-4 cursor-pointer hover:bg-slate-200/60" onclick="sortByColumn('status')">Status</th>
-            <th class="py-3 px-4 cursor-pointer hover:bg-slate-200/60" onclick="sortByColumn('platform')">Platform</th>
-            <th class="py-3 px-4">Post Type</th>
             <th class="py-3 px-4 cursor-pointer hover:bg-slate-200/60" onclick="sortByColumn('campaign_run_date')">Campaign Run Date</th>
             <th class="py-3 px-4 cursor-pointer hover:bg-slate-200/60" onclick="sortByColumn('priority')">Priority</th>
-            <th class="py-3 px-4 cursor-pointer hover:bg-slate-200/60" onclick="sortByColumn('salary')">Salary</th>
             <th class="py-3 px-4">Notes</th>
             {% if request.user.profile.has_edit_content_tracker or request.user.profile.has_delete_content_tracker or request.user.is_superuser %}
             <th class="py-3 px-4 text-center w-20">Actions</th>
@@ -186,7 +173,6 @@
             </td>
             <td class="py-3 px-4 font-mono font-bold text-slate-400 whitespace-nowrap">#{{ item.id }}</td>
             <td class="py-3 px-4 font-bold text-slate-900 whitespace-nowrap">{{ item.client.company }}</td>
-            <td class="py-3 px-4 text-slate-600 whitespace-nowrap">{{ item.client_month|default:"-" }}</td>
             <td class="py-3 px-4 font-semibold text-primary-600 max-w-[200px] truncate" title="{{ item.video_title }}">{{ item.video_title }}</td>
             <td class="py-3 px-4 font-medium whitespace-nowrap">
               {% if item.editor %}
@@ -195,7 +181,6 @@
                 <span class="text-slate-400 italic">Unassigned</span>
               {% endif %}
             </td>
-            <td class="py-3 px-4 text-slate-600 whitespace-nowrap">{{ item.editor_month|default:"-" }}</td>
             <td class="py-3 px-4 font-mono text-slate-600 whitespace-nowrap">{{ item.date_received|date:"Y-m-d"|default:"-" }}</td>
             <td class="py-3 px-4 font-mono font-bold text-slate-700 whitespace-nowrap">{{ item.due_date|date:"Y-m-d"|default:"-" }}</td>
             <td class="py-3 px-4 whitespace-nowrap">
@@ -212,8 +197,6 @@
                 {{ item.status }}
               </span>
             </td>
-            <td class="py-3 px-4 font-semibold text-slate-700 whitespace-nowrap">{{ item.platform }}</td>
-            <td class="py-3 px-4 text-slate-600 whitespace-nowrap">{{ item.post_type }}</td>
             <td class="py-3 px-4 font-mono text-slate-600 whitespace-nowrap">{{ item.campaign_run_date|date:"Y-m-d"|default:"-" }}</td>
             <td class="py-3 px-4 whitespace-nowrap">
               {% if item.priority == 'Low' %}
@@ -228,7 +211,6 @@
                 <span class="text-slate-400">-</span>
               {% endif %}
             </td>
-            <td class="py-3 px-4 text-slate-700 font-mono whitespace-nowrap">{{ item.salary|default:"-" }}</td>
             <td class="py-3 px-4 max-w-[140px] truncate text-slate-500 cursor-help" title="{{ item.notes }}">
               {{ item.notes|default:"-" }}
             </td>
@@ -242,7 +224,7 @@
                 <div id="dropdown-menu-{{ item.id }}" class="hidden absolute right-0 mt-1 w-40 rounded-xl bg-white border border-slate-200 shadow-xl z-50 divide-y divide-slate-100 text-xs">
                   {% if request.user.profile.has_edit_content_tracker or request.user.is_superuser %}
                   <div class="py-1">
-                    <button type="button" onclick="openEditModal({{ item.id }}, '{{ item.client.id|escapejs }}', '{{ item.video_title|escapejs }}', '{{ item.editor.id|default:''|escapejs }}', '{{ item.date_received|date:'Y-m-d'|escapejs }}', '{{ item.due_date|date:'Y-m-d'|escapejs }}', '{{ item.status|escapejs }}', '{{ item.platform|escapejs }}', '{{ item.post_type|escapejs }}', '{{ item.priority|escapejs }}', '{{ item.notes|escapejs }}', '{{ item.client_month|escapejs }}', '{{ item.editor_month|escapejs }}', '{{ item.campaign_run_date|date:'Y-m-d'|escapejs }}', '{{ item.salary|escapejs }}')" class="w-full text-left px-3 py-2 text-slate-700 hover:bg-slate-50 flex items-center gap-2 font-medium">
+                    <button type="button" onclick="openEditModal({{ item.id }}, '{{ item.client.id|escapejs }}', '{{ item.video_title|escapejs }}', '{{ item.editor.id|default:''|escapejs }}', '{{ item.date_received|date:'Y-m-d'|escapejs }}', '{{ item.due_date|date:'Y-m-d'|escapejs }}', '{{ item.status|escapejs }}', '{{ item.priority|escapejs }}', '{{ item.notes|escapejs }}', '{{ item.campaign_run_date|date:'Y-m-d'|escapejs }}')" class="w-full text-left px-3 py-2 text-slate-700 hover:bg-slate-50 flex items-center gap-2 font-medium">
                       <i data-lucide="edit" class="w-3.5 h-3.5 text-slate-500"></i> Edit
                     </button>
                     <button type="button" onclick="duplicateItem({{ item.id }})" class="w-full text-left px-3 py-2 text-slate-700 hover:bg-slate-50 flex items-center gap-2 font-medium">
@@ -269,7 +251,7 @@
           </tr>
           {% empty %}
           <tr>
-            <td colspan="17" class="py-16 text-center">
+            <td colspan="12" class="py-16 text-center">
               <div class="flex flex-col items-center justify-center">
                 <i data-lucide="video-off" class="w-12 h-12 text-slate-300 mb-2"></i>
                 <h4 class="font-bold text-slate-800 text-sm">No Content Items Found</h4>
@@ -384,26 +366,6 @@
         </select>
       </div>
 
-      <!-- Platform -->
-      <div>
-        <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Platform</label>
-        <select name="platform" id="form-platform" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none">
-          {% for platform in platforms %}
-          <option value="{{ platform }}">{{ platform }}</option>
-          {% endfor %}
-        </select>
-      </div>
-
-      <!-- Post Type -->
-      <div>
-        <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Post Type</label>
-        <select name="post_type" id="form-post-type" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none">
-          {% for post in post_types %}
-          <option value="{{ post }}">{{ post }}</option>
-          {% endfor %}
-        </select>
-      </div>
-
       <!-- Status -->
       <div>
         <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Status</label>
@@ -434,28 +396,15 @@
         <input type="date" name="due_date" id="form-due-date" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none"/>
       </div>
 
-      <!-- Notes -->
-      <div class="md:col-span-2">
-        <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Notes</label>
-        <textarea name="notes" id="form-notes" rows="3" placeholder="Add specific editing, transitions, or copy instructions..." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none"></textarea>
-      </div>
-
-      <!-- Additional Fields -->
-      <div>
-        <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Client Month</label>
-        <input type="text" name="client_month" id="form-client-month" placeholder="e.g. Jan 2024" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none"/>
-      </div>
-      <div>
-        <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Editor Month</label>
-        <input type="text" name="editor_month" id="form-editor-month" placeholder="e.g. Jan 2024" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none"/>
-      </div>
       <div>
         <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Campaign Run Date</label>
         <input type="date" name="campaign_run_date" id="form-campaign-run-date" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none"/>
       </div>
-      <div>
-        <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Salary</label>
-        <input type="number" step="0.01" name="salary" id="form-salary" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none"/>
+
+      <!-- Notes -->
+      <div class="md:col-span-2">
+        <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Notes</label>
+        <textarea name="notes" id="form-notes" rows="3" placeholder="Add specific editing, transitions, or copy instructions..." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none"></textarea>
       </div>
 
       <div class="md:col-span-2 flex justify-end gap-3 pt-4 border-t border-slate-100 sticky bottom-0 bg-white">
@@ -508,7 +457,7 @@
       document.getElementById('content-modal').classList.remove('hidden');
   }
 
-  function openEditModal(id, clientId, title, editorId, dateRecd, dueDate, status, platform, postType, priority, notes, clientMonth, editorMonth, campaignRunDate, salary) {
+  function openEditModal(id, clientId, title, editorId, dateRecd, dueDate, status, priority, notes, campaignRunDate) {
       document.getElementById('form-item-id').value = id;
       document.getElementById('form-client-id').value = clientId;
       document.getElementById('form-video-title').value = title;
@@ -516,14 +465,9 @@
       document.getElementById('form-date-received').value = dateRecd || '';
       document.getElementById('form-due-date').value = dueDate || '';
       document.getElementById('form-status').value = status;
-      document.getElementById('form-platform').value = platform;
-      document.getElementById('form-post-type').value = postType;
       document.getElementById('form-priority').value = priority;
       document.getElementById('form-notes').value = notes || '';
-      document.getElementById('form-client-month').value = clientMonth || '';
-      document.getElementById('form-editor-month').value = editorMonth || '';
       document.getElementById('form-campaign-run-date').value = campaignRunDate || '';
-      document.getElementById('form-salary').value = salary || '';
       
       document.getElementById('modal-title').innerText = 'Edit Content Item';
       document.getElementById('content-modal').classList.remove('hidden');
@@ -747,10 +691,9 @@
   // Download Import Template
   function downloadTemplate() {
       const headers = [
-          "ID", "Client", "Client Month", "Video Title", "Editor", "Editer Month", 
-          "Date Received", "Due Date", "Status", "Platform", "Upload Date", 
-          "Post Type", "campaign run date", "Campaign status", "Video Link", 
-          "Priority", "Salary", "Notes"
+          "ID", "Client", "Video Title", "Editor", 
+          "Date Received", "Due Date", "Status", "Campaign Run Date", 
+          "Priority", "Notes"
       ];
       const csvContent = headers.join(",") + "\n";
       
