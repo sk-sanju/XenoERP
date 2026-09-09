@@ -4640,7 +4640,11 @@ def add_content_item(request):
             'campaign_run_date': campaign_run_date or '', 'salary': salary or '',
         }
 
+        is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+
         if not client_id or not video_title:
+            if is_ajax:
+                return JsonResponse({'success': False, 'error': 'Client and Video Title are required.'})
             messages.error(request, 'Client and Video Title are required.')
             return render(request, 'content_item_form.html', {
                 'title': 'Add Content Item', 'form_data': form_data,
@@ -4663,8 +4667,12 @@ def add_content_item(request):
                 campaign_run_date=campaign_run_date, salary=salary,
             )
             SystemNotification.objects.create(user=request.user, message=f"Content item '{video_title}' created successfully.", type='success')
+            if is_ajax:
+                return JsonResponse({'success': True, 'message': f"Content item '{video_title}' created successfully."})
             return redirect('content_tracker')
         except Exception as e:
+            if is_ajax:
+                return JsonResponse({'success': False, 'error': str(e)})
             messages.error(request, str(e))
             return render(request, 'content_item_form.html', {
                 'title': 'Add Content Item', 'form_data': form_data,
@@ -4724,7 +4732,11 @@ def edit_content_item(request, item_id):
             'campaign_run_date': campaign_run_date or '', 'salary': salary or '',
         }
 
+        is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+
         if not client_id or not video_title:
+            if is_ajax:
+                return JsonResponse({'success': False, 'error': 'Client and Video Title are required.'})
             messages.error(request, 'Client and Video Title are required.')
             return render(request, 'content_item_form.html', {
                 'title': f'Edit: {item.video_title}', 'form_data': form_data,
@@ -4753,8 +4765,12 @@ def edit_content_item(request, item_id):
             item.salary = salary
             item.save()
             SystemNotification.objects.create(user=request.user, message=f"Content item '{video_title}' updated successfully.", type='success')
+            if is_ajax:
+                return JsonResponse({'success': True, 'message': f"Content item '{video_title}' updated successfully."})
             return redirect('content_tracker')
         except Exception as e:
+            if is_ajax:
+                return JsonResponse({'success': False, 'error': str(e)})
             messages.error(request, str(e))
             return render(request, 'content_item_form.html', {
                 'title': f'Edit: {item.video_title}', 'form_data': form_data,
