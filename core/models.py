@@ -141,6 +141,8 @@ class UserProfile(models.Model):
             'sales executive',
             'sales_executive',
             'manager',
+            'staff',
+            'user',
         ])
 
         pages_to_check = [page_name]
@@ -162,8 +164,10 @@ class UserProfile(models.Model):
                 for prefix in candidate_prefixes:
                     search_keys.append(f"{prefix}_{p}_edit")
                     search_keys.append(f"{prefix}-{p}-edit")
+                    search_keys.append(f"{prefix}_{p}_create")
                 search_keys.append(f"{p}_edit")
                 search_keys.append(f"{p}-edit")
+                search_keys.append(f"{p}_create")
             elif action == 'delete':
                 for prefix in candidate_prefixes:
                     search_keys.append(f"{prefix}_{p}_delete")
@@ -191,8 +195,11 @@ class UserProfile(models.Model):
         return None
 
     def check_page_permission(self, page_name):
-        if self.user and self.user.is_superuser:
-            return True
+        try:
+            if getattr(self, 'user', None) and self.user.is_superuser:
+                return True
+        except Exception:
+            pass
 
         role_lower = (self.role or '').lower().strip()
         if 'admin' in role_lower:
@@ -252,8 +259,11 @@ class UserProfile(models.Model):
             ]
 
     def check_edit_permission(self, page_name):
-        if self.user and self.user.is_superuser:
-            return True
+        try:
+            if getattr(self, 'user', None) and self.user.is_superuser:
+                return True
+        except Exception:
+            pass
 
         role_lower = (self.role or '').lower().strip()
         if 'admin' in role_lower:
@@ -281,8 +291,11 @@ class UserProfile(models.Model):
         return self.check_page_permission(page_name)
 
     def check_delete_permission(self, page_name):
-        if self.user and self.user.is_superuser:
-            return True
+        try:
+            if getattr(self, 'user', None) and self.user.is_superuser:
+                return True
+        except Exception:
+            pass
 
         role_lower = (self.role or '').lower().strip()
         if 'admin' in role_lower:
@@ -541,6 +554,30 @@ class UserProfile(models.Model):
             self.has_access_departments or
             self.has_access_finance_settings
         )
+
+    def check_action_permission(self, page_name, action='view'):
+        if action == 'view':
+            return self.check_page_permission(page_name)
+        elif action in ['edit', 'create', 'update', 'add']:
+            return self.check_edit_permission(page_name)
+        elif action in ['delete', 'remove', 'destroy']:
+            return self.check_delete_permission(page_name)
+        return self.check_page_permission(page_name)
+
+    def __getattr__(self, item):
+        if item.startswith('has_access_'):
+            page = item[len('has_access_'):]
+            return self.check_page_permission(page)
+        elif item.startswith('has_edit_'):
+            page = item[len('has_edit_'):]
+            return self.check_edit_permission(page)
+        elif item.startswith('has_create_'):
+            page = item[len('has_create_'):]
+            return self.check_edit_permission(page)
+        elif item.startswith('has_delete_'):
+            page = item[len('has_delete_'):]
+            return self.check_delete_permission(page)
+        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{item}'")
 
 
 class SystemNotification(models.Model):
