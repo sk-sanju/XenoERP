@@ -184,6 +184,42 @@
             <td class="py-3 px-4 font-mono text-slate-600 whitespace-nowrap">{{ item.date_received|date:"Y-m-d"|default:"-" }}</td>
             <td class="py-3 px-4 font-mono font-bold text-slate-700 whitespace-nowrap">{{ item.due_date|date:"Y-m-d"|default:"-" }}</td>
             <td class="py-3 px-4 whitespace-nowrap">
+              {% if request.user.profile.has_edit_content_tracker or request.user.is_superuser %}
+              <div class="relative inline-flex items-center">
+                <select onchange="updateInlineStatus(this, {{ item.id }})"
+                  data-previous-value="{{ item.status }}"
+                  class="status-select-pill text-[10px] font-extrabold uppercase tracking-wide rounded-full px-2.5 py-1 pr-6 border cursor-pointer appearance-none transition-all focus:outline-none focus:ring-2 focus:ring-primary-500/20 shadow-2xs font-sans
+                  {% if item.status|lower == 'pending' %}bg-amber-50 text-amber-700 border-amber-200 hover:border-amber-300
+                  {% elif item.status|lower == 'editing' %}bg-blue-50 text-blue-700 border-blue-200 hover:border-blue-300
+                  {% elif item.status|lower == 'edited' %}bg-indigo-50 text-indigo-700 border-indigo-200 hover:border-indigo-300
+                  {% elif item.status|lower == 'review' %}bg-purple-50 text-purple-700 border-purple-200 hover:border-purple-300
+                  {% elif item.status|lower == 'approved' %}bg-emerald-50 text-emerald-700 border-emerald-200 hover:border-emerald-300
+                  {% elif item.status|lower == 'published' %}bg-green-100 text-green-800 border-green-300 hover:border-green-400
+                  {% elif item.status|lower == 'rejected' %}bg-rose-50 text-rose-700 border-rose-200 hover:border-rose-300
+                  {% elif item.status|lower == 'scheduled' %}bg-teal-50 text-teal-700 border-teal-200 hover:border-teal-300
+                  {% else %}bg-slate-100 text-slate-700 border-slate-300 hover:border-slate-400{% endif %}"
+                  title="Click to change status">
+                  {% for opt in status_options %}
+                    <option value="{{ opt }}" class="bg-white text-slate-800 font-medium normal-case" {% if item.status == opt %}selected{% endif %}>{{ opt }}</option>
+                  {% empty %}
+                    <option value="Pending" class="bg-white text-slate-800" {% if item.status == 'Pending' %}selected{% endif %}>Pending</option>
+                    <option value="Editing" class="bg-white text-slate-800" {% if item.status == 'Editing' %}selected{% endif %}>Editing</option>
+                    <option value="Review" class="bg-white text-slate-800" {% if item.status == 'Review' %}selected{% endif %}>Review</option>
+                    <option value="Approved" class="bg-white text-slate-800" {% if item.status == 'Approved' %}selected{% endif %}>Approved</option>
+                    <option value="Published" class="bg-white text-slate-800" {% if item.status == 'Published' %}selected{% endif %}>Published</option>
+                    <option value="Rejected" class="bg-white text-slate-800" {% if item.status == 'Rejected' %}selected{% endif %}>Rejected</option>
+                  {% endfor %}
+                  {% if item.status and item.status not in status_options %}
+                    <option value="{{ item.status }}" class="bg-white text-slate-800 font-medium normal-case" selected>{{ item.status }}</option>
+                  {% endif %}
+                </select>
+                <span class="pointer-events-none absolute right-2 text-current opacity-60 flex items-center">
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"></path>
+                  </svg>
+                </span>
+              </div>
+              {% else %}
               <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wide border shadow-2xs
                 {% if item.status|lower == 'pending' %}bg-amber-50 text-amber-700 border-amber-200
                 {% elif item.status|lower == 'editing' %}bg-blue-50 text-blue-700 border-blue-200
@@ -196,6 +232,7 @@
                 {% else %}bg-slate-100 text-slate-700 border-slate-300{% endif %}">
                 {{ item.status }}
               </span>
+              {% endif %}
             </td>
             <td class="py-3 px-4 font-mono text-slate-600 whitespace-nowrap">{{ item.campaign_run_date|date:"Y-m-d"|default:"-" }}</td>
             <td class="py-3 px-4 whitespace-nowrap">
@@ -559,6 +596,86 @@
           }
       })
       .catch(err => console.error(err));
+  }
+
+  // Inline Status Update
+  const STATUS_CLASSES_MAP = {
+      'pending': ['bg-amber-50', 'text-amber-700', 'border-amber-200', 'hover:border-amber-300'],
+      'editing': ['bg-blue-50', 'text-blue-700', 'border-blue-200', 'hover:border-blue-300'],
+      'edited': ['bg-indigo-50', 'text-indigo-700', 'border-indigo-200', 'hover:border-indigo-300'],
+      'review': ['bg-purple-50', 'text-purple-700', 'border-purple-200', 'hover:border-purple-300'],
+      'approved': ['bg-emerald-50', 'text-emerald-700', 'border-emerald-200', 'hover:border-emerald-300'],
+      'published': ['bg-green-100', 'text-green-800', 'border-green-300', 'hover:border-green-400'],
+      'rejected': ['bg-rose-50', 'text-rose-700', 'border-rose-200', 'hover:border-rose-300'],
+      'scheduled': ['bg-teal-50', 'text-teal-700', 'border-teal-200', 'hover:border-teal-300'],
+      'default': ['bg-slate-100', 'text-slate-700', 'border-slate-300', 'hover:border-slate-400']
+  };
+
+  const ALL_STATUS_CLASSES_LIST = [
+      'bg-amber-50', 'text-amber-700', 'border-amber-200', 'hover:border-amber-300',
+      'bg-blue-50', 'text-blue-700', 'border-blue-200', 'hover:border-blue-300',
+      'bg-indigo-50', 'text-indigo-700', 'border-indigo-200', 'hover:border-indigo-300',
+      'bg-purple-50', 'text-purple-700', 'border-purple-200', 'hover:border-purple-300',
+      'bg-emerald-50', 'text-emerald-700', 'border-emerald-200', 'hover:border-emerald-300',
+      'bg-green-100', 'text-green-800', 'border-green-300', 'hover:border-green-400',
+      'bg-rose-50', 'text-rose-700', 'border-rose-200', 'hover:border-rose-300',
+      'bg-teal-50', 'text-teal-700', 'border-teal-200', 'hover:border-teal-300',
+      'bg-slate-100', 'text-slate-700', 'border-slate-300', 'hover:border-slate-400'
+  ];
+
+  function applyStatusClasses(selectEl, statusValue) {
+      selectEl.classList.remove(...ALL_STATUS_CLASSES_LIST);
+      const key = (statusValue || '').toLowerCase().trim();
+      const targetClasses = STATUS_CLASSES_MAP[key] || STATUS_CLASSES_MAP['default'];
+      selectEl.classList.add(...targetClasses);
+  }
+
+  function updateInlineStatus(selectEl, itemId) {
+      const newStatus = selectEl.value;
+      const prevStatus = selectEl.getAttribute('data-previous-value') || '';
+      const url = `{% url 'add_content_item' %}`.replace('add/', `${itemId}/update-status/`);
+      const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]') ? document.querySelector('[name=csrfmiddlewaretoken]').value : '';
+
+      selectEl.disabled = true;
+      selectEl.style.opacity = '0.6';
+
+      fetch(url, {
+          method: 'POST',
+          headers: {
+              'Content-Type': 'application/json',
+              'X-Requested-With': 'XMLHttpRequest',
+              'X-CSRFToken': csrftoken || "{{ csrf_token }}"
+          },
+          body: JSON.stringify({ status: newStatus })
+      })
+      .then(res => res.json())
+      .then(data => {
+          selectEl.disabled = false;
+          selectEl.style.opacity = '1';
+          if (data.success) {
+              selectEl.setAttribute('data-previous-value', newStatus);
+              applyStatusClasses(selectEl, newStatus);
+              if (typeof showToast === 'function') {
+                  showToast(data.message || `Status updated to ${newStatus}`, 'success');
+              }
+          } else {
+              selectEl.value = prevStatus;
+              applyStatusClasses(selectEl, prevStatus);
+              if (typeof showToast === 'function') {
+                  showToast(data.error || 'Failed to update status.', 'error');
+              }
+          }
+      })
+      .catch(err => {
+          console.error(err);
+          selectEl.disabled = false;
+          selectEl.style.opacity = '1';
+          selectEl.value = prevStatus;
+          applyStatusClasses(selectEl, prevStatus);
+          if (typeof showToast === 'function') {
+              showToast('Network error updating status.', 'error');
+          }
+      });
   }
 
   // Delete Item
