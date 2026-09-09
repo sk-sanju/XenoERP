@@ -53,13 +53,8 @@ class ContentItem(models.Model):
 
 class ContentDropdownOption(models.Model):
     CATEGORY_CHOICES = [
-        ('platform', 'Platform'),
-        ('post_type', 'Post Type'),
         ('status', 'Status'),
-        ('campaign_status', 'Campaign Status'),
         ('priority', 'Priority'),
-        ('editor_status', 'Editor Board Status'),
-        ('marketer_status', 'Post Management Status'),
     ]
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='content_dropdown_options')
     category = models.CharField(max_length=50, choices=CATEGORY_CHOICES)

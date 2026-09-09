@@ -19,7 +19,7 @@
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
       <div>
         <h2 class="font-headline-lg text-headline-lg font-bold text-on-background">Content Settings</h2>
-        <p class="text-secondary text-body-sm mt-1">Manage the dropdown options used across the Content Tracker — platforms, post types, statuses, campaign statuses, and priorities.</p>
+        <p class="text-secondary text-body-sm mt-1">Manage the dropdown options used across the Content Tracker — statuses and priorities.</p>
       </div>
       {% if request.user.profile.has_access_content_tracker %}
       <a href="{% url 'content_tracker' %}" class="bg-surface-container border border-outline-variant text-on-surface px-4 py-2 rounded-xl font-button text-button flex items-center gap-2 hover:bg-slate-50 transition-all self-start">
@@ -42,27 +42,21 @@
     {% endif %}
 
     <!-- Categories Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl">
       {% for cat_key, cat_data in all_options.items %}
       <div class="glass-card rounded-2xl border border-outline-variant/30 shadow-sm bg-white overflow-hidden flex flex-col">
         <!-- Category Header -->
         <div class="flex items-center justify-between p-5 border-b border-outline-variant/20 bg-slate-50/50">
           <div class="flex items-center gap-3">
             <div class="w-8 h-8 rounded-lg flex items-center justify-center
-              {% if cat_key == 'platform' %}bg-blue-100 text-blue-600
-              {% elif cat_key == 'post_type' %}bg-purple-100 text-purple-600
-              {% elif cat_key == 'status' %}bg-amber-100 text-amber-600
+              {% if cat_key == 'status' %}bg-amber-100 text-amber-600
               {% elif cat_key == 'priority' %}bg-rose-100 text-rose-600
-              {% elif cat_key == 'editor_status' %}bg-indigo-100 text-indigo-600
-              {% elif cat_key == 'marketer_status' %}bg-teal-100 text-teal-600
+              {% else %}bg-primary-100 text-primary-600
               {% endif %}">
               <span class="material-symbols-outlined text-[18px]">
-                {% if cat_key == 'platform' %}devices
-                {% elif cat_key == 'post_type' %}video_library
-                {% elif cat_key == 'status' %}assignment
+                {% if cat_key == 'status' %}assignment
                 {% elif cat_key == 'priority' %}flag
-                {% elif cat_key == 'editor_status' %}edit_square
-                {% elif cat_key == 'marketer_status' %}campaign
+                {% else %}tune
                 {% endif %}
               </span>
             </div>

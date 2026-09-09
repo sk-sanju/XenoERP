@@ -78,15 +78,15 @@
             <div class="space-y-2 text-xs">
               <div class="flex justify-between items-center">
                 <span class="text-outline font-medium flex items-center gap-1.5">
-                  <span class="material-symbols-outlined text-[14px]">event</span> Publish Date
+                  <span class="material-symbols-outlined text-[14px]">event</span> Campaign Run Date
                 </span>
-                <span class="font-bold text-on-surface">{{ item.upload_date|date:"Y-m-d"|default:"-" }}</span>
+                <span class="font-bold text-on-surface">{{ item.campaign_run_date|date:"Y-m-d"|default:"-" }}</span>
               </div>
               <div class="flex justify-between items-center">
                 <span class="text-outline font-medium flex items-center gap-1.5">
-                  <span class="material-symbols-outlined text-[14px]">category</span> Post Type
+                  <span class="material-symbols-outlined text-[14px]">schedule</span> Due Date
                 </span>
-                <span class="font-semibold text-secondary">{{ item.post_type }}</span>
+                <span class="font-semibold text-secondary">{{ item.due_date|date:"Y-m-d"|default:"-" }}</span>
               </div>
               <div class="flex justify-between items-center">
                 <span class="text-outline font-medium flex items-center gap-1.5">

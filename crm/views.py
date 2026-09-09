@@ -5063,8 +5063,6 @@ def import_content_items(request):
 # â”€â”€â”€ Content Settings (Manage Dropdown Options) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 DEFAULT_CONTENT_OPTIONS = {
-    'platform': ['YouTube', 'TikTok', 'Instagram', 'LinkedIn', 'Facebook', 'Twitter'],
-    'post_type': ['Reel', 'Short', 'Long-form', 'TikTok Video', 'Carousel', 'Post'],
     'status': ['Pending', 'Editing', 'Review', 'Approved', 'Published', 'Rejected', 'Scheduled'],
     'priority': ['Low', 'Medium', 'High', 'Urgent'],
 }
@@ -5097,6 +5095,13 @@ def _get_content_options(org, category):
 def content_settings_view(request):
     """Manage Content Tracker dropdown options."""
     org = request.user.profile.organization
+    
+    # Remove obsolete categories from database
+    ContentDropdownOption.objects.filter(
+        organization=org, 
+        category__in=['platform', 'post_type', 'editor_status', 'campaign_status', 'marketer_status']
+    ).delete()
+    
     _seed_content_defaults(org)
 
     categories = ContentDropdownOption.CATEGORY_CHOICES
@@ -5122,8 +5127,9 @@ def add_content_option(request):
         org = request.user.profile.organization
         category = request.POST.get('category', '').strip()
         value = request.POST.get('value', '').strip()
-        if not category or not value:
-            messages.error(request, 'Category and value are required.')
+        valid_cats = [c[0] for c in ContentDropdownOption.CATEGORY_CHOICES]
+        if not category or not value or category not in valid_cats:
+            messages.error(request, 'Valid category and value are required.')
             return redirect('content_settings')
         # Check for duplicate
         if ContentDropdownOption.objects.filter(organization=org, category=category, value=value).exists():
