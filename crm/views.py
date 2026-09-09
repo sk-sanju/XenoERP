@@ -4518,10 +4518,6 @@ def content_tracker_view(request):
     if status_filter:
         items = items.filter(status=status_filter)
         
-    platform_filter = request.GET.get('platform_filter', '').strip()
-    if platform_filter:
-        items = items.filter(platform=platform_filter)
-        
     priority_filter = request.GET.get('priority_filter', '').strip()
     if priority_filter:
         items = items.filter(priority=priority_filter)
@@ -4543,8 +4539,8 @@ def content_tracker_view(request):
     allowed_sort_fields = [
         'id', '-id', 'client__company', '-client__company', 'video_title', '-video_title',
         'editor__user__username', '-editor__user__username', 'date_received', '-date_received',
-        'due_date', '-due_date', 'status', '-status', 'platform', '-platform',
-        'priority', '-priority'
+        'due_date', '-due_date', 'status', '-status', 'priority', '-priority',
+        'campaign_run_date', '-campaign_run_date'
     ]
     if sort_by not in allowed_sort_fields:
         sort_by = '-due_date'
@@ -4567,8 +4563,6 @@ def content_tracker_view(request):
     page_num = request.GET.get('page', 1)
     page_obj = paginator.get_page(page_num)
     
-    platforms = _get_content_options(org, 'platform')
-    post_types = _get_content_options(org, 'post_type')
     status_options = _get_content_options(org, 'status')
     priority_options = _get_content_options(org, 'priority')
     
@@ -4581,15 +4575,12 @@ def content_tracker_view(request):
         'editing_count': editing_count,
         'published_count': published_count,
         'scheduled_count': scheduled_count,
-        'platforms': platforms,
-        'post_types': post_types,
         'status_options': status_options,
         'priority_options': priority_options,
         'q': q,
         'client_filter': client_filter,
         'editor_filter': editor_filter,
         'status_filter': status_filter,
-        'platform_filter': platform_filter,
         'priority_filter': priority_filter,
         'date_filter': date_filter,
         'sort_by': sort_by,
@@ -4611,8 +4602,6 @@ def add_content_item(request):
             seen_companies.add(c.company)
             clients.append(c)
     editors = org.members.filter(role__iexact='Editor').select_related('user')
-    platforms = _get_content_options(org, 'platform')
-    post_types = _get_content_options(org, 'post_type')
 
     if request.method == 'POST':
         from crm.models import ContentItem
@@ -4622,22 +4611,15 @@ def add_content_item(request):
         date_received = request.POST.get('date_received') or None
         due_date = request.POST.get('due_date') or None
         status = request.POST.get('status', 'Pending')
-        platform = request.POST.get('platform', 'YouTube')
-        post_type = request.POST.get('post_type', 'Reel')
         priority = request.POST.get('priority', 'Medium')
         notes = request.POST.get('notes', '').strip()
-        client_month = request.POST.get('client_month', '').strip()
-        editor_month = request.POST.get('editor_month', '').strip()
         campaign_run_date = request.POST.get('campaign_run_date') or None
-        salary = request.POST.get('salary') or None
 
         form_data = {
             'client_id': client_id, 'video_title': video_title, 'editor_id': editor_id,
             'date_received': date_received or '', 'due_date': due_date or '',
-            'status': status, 'platform': platform, 'post_type': post_type,
-            'priority': priority, 'notes': notes,
-            'client_month': client_month, 'editor_month': editor_month,
-            'campaign_run_date': campaign_run_date or '', 'salary': salary or '',
+            'status': status, 'priority': priority, 'notes': notes,
+            'campaign_run_date': campaign_run_date or '',
         }
 
         is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.headers.get('X-Requested-With') == 'XMLHttpRequest'
@@ -4648,7 +4630,7 @@ def add_content_item(request):
             messages.error(request, 'Client and Video Title are required.')
             return render(request, 'content_item_form.html', {
                 'title': 'Add Content Item', 'form_data': form_data,
-                'clients': clients, 'editors': editors, 'platforms': platforms, 'post_types': post_types,
+                'clients': clients, 'editors': editors,
             })
 
         try:
@@ -4660,11 +4642,8 @@ def add_content_item(request):
             ContentItem.objects.create(
                 organization=org, client=client_obj, video_title=video_title,
                 editor=editor_obj, date_received=date_received, due_date=due_date,
-                status=status, platform=platform,
-                post_type=post_type,
-                priority=priority, notes=notes,
-                client_month=client_month, editor_month=editor_month,
-                campaign_run_date=campaign_run_date, salary=salary,
+                status=status, priority=priority, notes=notes,
+                campaign_run_date=campaign_run_date,
             )
             SystemNotification.objects.create(user=request.user, message=f"Content item '{video_title}' created successfully.", type='success')
             if is_ajax:
@@ -4676,7 +4655,7 @@ def add_content_item(request):
             messages.error(request, str(e))
             return render(request, 'content_item_form.html', {
                 'title': 'Add Content Item', 'form_data': form_data,
-                'clients': clients, 'editors': editors, 'platforms': platforms, 'post_types': post_types,
+                'clients': clients, 'editors': editors,
             })
 
     # GET request
@@ -4685,8 +4664,6 @@ def add_content_item(request):
         'form_data': {},
         'clients': clients,
         'editors': editors,
-        'platforms': platforms,
-        'post_types': post_types,
     }
     return render(request, 'content_item_form.html', context)
 
@@ -4699,8 +4676,6 @@ def edit_content_item(request, item_id):
     from crm.models import ContentItem
     clients = Lead.objects.filter(organization=org, is_client=True)
     editors = org.members.filter(role__iexact='Editor').select_related('user')
-    platforms = _get_content_options(org, 'platform')
-    post_types = _get_content_options(org, 'post_type')
 
     try:
         item = ContentItem.objects.get(id=item_id, organization=org)
@@ -4715,21 +4690,14 @@ def edit_content_item(request, item_id):
         date_received = request.POST.get('date_received') or None
         due_date = request.POST.get('due_date') or None
         status = request.POST.get('status', 'Pending')
-        platform = request.POST.get('platform', 'YouTube')
-        post_type = request.POST.get('post_type', 'Reel')
         priority = request.POST.get('priority', 'Medium')
         notes = request.POST.get('notes', '').strip()
-        client_month = request.POST.get('client_month', '').strip()
-        editor_month = request.POST.get('editor_month', '').strip()
         campaign_run_date = request.POST.get('campaign_run_date') or None
-        salary = request.POST.get('salary') or None
         form_data = {
             'client_id': client_id, 'video_title': video_title, 'editor_id': editor_id,
             'date_received': date_received or '', 'due_date': due_date or '',
-            'status': status, 'platform': platform, 'post_type': post_type,
-            'priority': priority, 'notes': notes,
-            'client_month': client_month, 'editor_month': editor_month,
-            'campaign_run_date': campaign_run_date or '', 'salary': salary or '',
+            'status': status, 'priority': priority, 'notes': notes,
+            'campaign_run_date': campaign_run_date or '',
         }
 
         is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.headers.get('X-Requested-With') == 'XMLHttpRequest'
@@ -4740,7 +4708,7 @@ def edit_content_item(request, item_id):
             messages.error(request, 'Client and Video Title are required.')
             return render(request, 'content_item_form.html', {
                 'title': f'Edit: {item.video_title}', 'form_data': form_data,
-                'clients': clients, 'editors': editors, 'platforms': platforms, 'post_types': post_types,
+                'clients': clients, 'editors': editors,
             })
 
         try:
@@ -4755,14 +4723,9 @@ def edit_content_item(request, item_id):
             item.date_received = date_received
             item.due_date = due_date
             item.status = status
-            item.platform = platform
-            item.post_type = post_type
             item.priority = priority
             item.notes = notes
-            item.client_month = client_month
-            item.editor_month = editor_month
             item.campaign_run_date = campaign_run_date
-            item.salary = salary
             item.save()
             SystemNotification.objects.create(user=request.user, message=f"Content item '{video_title}' updated successfully.", type='success')
             if is_ajax:
@@ -4774,7 +4737,7 @@ def edit_content_item(request, item_id):
             messages.error(request, str(e))
             return render(request, 'content_item_form.html', {
                 'title': f'Edit: {item.video_title}', 'form_data': form_data,
-                'clients': clients, 'editors': editors, 'platforms': platforms, 'post_types': post_types,
+                'clients': clients, 'editors': editors,
             })
 
     # GET request — populate from existing item
@@ -4785,22 +4748,15 @@ def edit_content_item(request, item_id):
         'date_received': str(item.date_received) if item.date_received else '',
         'due_date': str(item.due_date) if item.due_date else '',
         'status': item.status,
-        'platform': item.platform,
-        'post_type': item.post_type,
         'priority': item.priority,
         'notes': item.notes or '',
-        'client_month': item.client_month or '',
-        'editor_month': item.editor_month or '',
         'campaign_run_date': str(item.campaign_run_date) if item.campaign_run_date else '',
-        'salary': str(item.salary) if item.salary else '',
     }
     context = {
         'title': f'Edit: {item.video_title}',
         'form_data': form_data,
         'clients': clients,
         'editors': editors,
-        'platforms': platforms,
-        'post_types': post_types,
     }
     return render(request, 'content_item_form.html', context)
 
@@ -4916,15 +4872,9 @@ def import_content_items(request):
         'date_received': ['date received', 'date_received', 'received date', 'received_date', 'received'],
         'due_date': ['due date', 'due_date', 'deadline', 'due'],
         'status': ['status', 'content status', 'content_status'],
-        'platform': ['platform', 'channel', 'social platform'],
-        'upload_date': ['upload date', 'upload_date', 'publish date', 'publish_date', 'uploaded'],
-        'post_type': ['post type', 'post_type', 'type', 'content type', 'content_type', 'format'],
         'priority': ['priority', 'urgency', 'importance'],
         'notes': ['notes', 'note', 'comments', 'comment', 'description', 'remarks'],
-        'client_month': ['client month', 'client_month'],
-        'editor_month': ['editor month', 'editor_month', 'editer month'],
         'campaign_run_date': ['campaign run date', 'campaign_run_date'],
-        'salary': ['salary', 'pay', 'amount'],
     }
 
     for field, aliases in header_aliases.items():
@@ -4967,8 +4917,6 @@ def import_content_items(request):
     # Valid choices
     valid_statuses = [c[0] for c in ContentItem.STATUS_CHOICES]
     valid_priorities = [c[0] for c in ContentItem.PRIORITY_CHOICES]
-    platforms = _get_content_options(org, 'platform')
-    post_types = _get_content_options(org, 'post_type')
 
     imported_count = 0
     failed_rows = []
@@ -5047,45 +4995,11 @@ def import_content_items(request):
         raw_status = row.get(mapped.get('status', ''), '').strip()
         status = match_choice(raw_status, valid_statuses) or 'Pending'
 
-        raw_platform = row.get(mapped.get('platform', ''), '').strip()
-        platform = None
-        if raw_platform:
-            for p in platforms:
-                if p.lower() == raw_platform.lower():
-                    platform = p
-                    break
-        if not platform:
-            platform = platforms[0] if platforms else 'YouTube'
-
-        raw_post_type = row.get(mapped.get('post_type', ''), '').strip()
-        post_type = None
-        if raw_post_type:
-            for pt in post_types:
-                if pt.lower() == raw_post_type.lower():
-                    post_type = pt
-                    break
-        if not post_type:
-            post_type = post_types[0] if post_types else 'Reel'
-
         raw_priority = row.get(mapped.get('priority', ''), '').strip()
         priority = match_choice(raw_priority, valid_priorities) or 'Medium'
 
         notes = row.get(mapped.get('notes', ''), '').strip() or None
-        
-        client_month = row.get(mapped.get('client_month', ''), '').strip() or None
-        editor_month = row.get(mapped.get('editor_month', ''), '').strip() or None
         campaign_run_date = safe_parse_date(row.get(mapped.get('campaign_run_date', ''), ''))
-        
-        raw_salary = row.get(mapped.get('salary', ''), '').strip()
-        salary = None
-        if raw_salary:
-            import re
-            try:
-                # Remove currency symbols and commas before conversion
-                cleaned_salary = re.sub(r'[^\d.]', '', raw_salary)
-                salary = float(cleaned_salary) if cleaned_salary else None
-            except ValueError:
-                pass
 
         try:
             with transaction.atomic():
@@ -5097,14 +5011,9 @@ def import_content_items(request):
                     date_received=date_received,
                     due_date=due_date,
                     status=status,
-                    platform=platform,
-                    post_type=post_type,
                     priority=priority,
                     notes=notes,
-                    client_month=client_month,
-                    editor_month=editor_month,
                     campaign_run_date=campaign_run_date,
-                    salary=salary,
                 )
                 imported_count += 1
         except Exception as ex:
