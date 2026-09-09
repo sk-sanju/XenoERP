@@ -197,6 +197,7 @@ urlpatterns = [
     path('settings/content-tracker/<int:item_id>/delete/', views.delete_content_item, name='delete_content_item'),
     path('settings/content-tracker/<int:item_id>/duplicate/', views.duplicate_content_item, name='duplicate_content_item'),
     path('settings/content-tracker/<int:item_id>/mark-complete/', views.mark_content_complete, name='mark_content_complete'),
+    path('settings/content-tracker/<int:item_id>/update-status/', views.update_content_item_status, name='update_content_item_status'),
     path('settings/content-tracker/bulk-delete/', views.bulk_delete_content_items, name='bulk_delete_content_items'),
     path('settings/content-tracker/import/', views.import_content_items, name='import_content_items'),
     

@@ -4814,6 +4814,35 @@ def mark_content_complete(request, item_id):
 
 @login_required
 @page_permission_required('content_tracker')
+def update_content_item_status(request, item_id):
+    """Inline update status of a content item via AJAX."""
+    if request.method == 'POST':
+        org = request.user.profile.organization
+        from crm.models import ContentItem
+        try:
+            item = ContentItem.objects.get(id=item_id, organization=org)
+            status_val = None
+            if request.content_type and 'application/json' in request.content_type:
+                data = json.loads(request.body)
+                status_val = data.get('status', '').strip()
+            else:
+                status_val = request.POST.get('status', '').strip()
+
+            if not status_val:
+                return JsonResponse({'success': False, 'error': 'Status cannot be empty.'})
+
+            item.status = status_val
+            item.save()
+            return JsonResponse({'success': True, 'message': f"Status updated to '{status_val}'.", 'status': item.status})
+        except ContentItem.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Content item not found.'}, status=404)
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+    return JsonResponse({'success': False, 'error': 'Invalid request method.'}, status=400)
+
+
+@login_required
+@page_permission_required('content_tracker')
 def bulk_delete_content_items(request):
     """Batch deletion of multiple content items."""
     if request.method == 'POST':
