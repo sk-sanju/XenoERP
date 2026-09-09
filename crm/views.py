@@ -4539,8 +4539,7 @@ def content_tracker_view(request):
     allowed_sort_fields = [
         'id', '-id', 'client__company', '-client__company', 'video_title', '-video_title',
         'editor__user__username', '-editor__user__username', 'date_received', '-date_received',
-        'due_date', '-due_date', 'status', '-status', 'priority', '-priority',
-        'campaign_run_date', '-campaign_run_date'
+        'due_date', '-due_date', 'status', '-status', 'priority', '-priority'
     ]
     if sort_by not in allowed_sort_fields:
         sort_by = '-due_date'
@@ -4613,13 +4612,11 @@ def add_content_item(request):
         status = request.POST.get('status', 'Pending')
         priority = request.POST.get('priority', 'Medium')
         notes = request.POST.get('notes', '').strip()
-        campaign_run_date = request.POST.get('campaign_run_date') or None
 
         form_data = {
             'client_id': client_id, 'video_title': video_title, 'editor_id': editor_id,
             'date_received': date_received or '', 'due_date': due_date or '',
             'status': status, 'priority': priority, 'notes': notes,
-            'campaign_run_date': campaign_run_date or '',
         }
 
         is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.headers.get('X-Requested-With') == 'XMLHttpRequest'
@@ -4643,7 +4640,6 @@ def add_content_item(request):
                 organization=org, client=client_obj, video_title=video_title,
                 editor=editor_obj, date_received=date_received, due_date=due_date,
                 status=status, priority=priority, notes=notes,
-                campaign_run_date=campaign_run_date,
             )
             SystemNotification.objects.create(user=request.user, message=f"Content item '{video_title}' created successfully.", type='success')
             if is_ajax:
@@ -4692,12 +4688,10 @@ def edit_content_item(request, item_id):
         status = request.POST.get('status', 'Pending')
         priority = request.POST.get('priority', 'Medium')
         notes = request.POST.get('notes', '').strip()
-        campaign_run_date = request.POST.get('campaign_run_date') or None
         form_data = {
             'client_id': client_id, 'video_title': video_title, 'editor_id': editor_id,
             'date_received': date_received or '', 'due_date': due_date or '',
             'status': status, 'priority': priority, 'notes': notes,
-            'campaign_run_date': campaign_run_date or '',
         }
 
         is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.headers.get('X-Requested-With') == 'XMLHttpRequest'
@@ -4725,7 +4719,6 @@ def edit_content_item(request, item_id):
             item.status = status
             item.priority = priority
             item.notes = notes
-            item.campaign_run_date = campaign_run_date
             item.save()
             SystemNotification.objects.create(user=request.user, message=f"Content item '{video_title}' updated successfully.", type='success')
             if is_ajax:
@@ -4750,7 +4743,6 @@ def edit_content_item(request, item_id):
         'status': item.status,
         'priority': item.priority,
         'notes': item.notes or '',
-        'campaign_run_date': str(item.campaign_run_date) if item.campaign_run_date else '',
     }
     context = {
         'title': f'Edit: {item.video_title}',
@@ -4903,7 +4895,6 @@ def import_content_items(request):
         'status': ['status', 'content status', 'content_status'],
         'priority': ['priority', 'urgency', 'importance'],
         'notes': ['notes', 'note', 'comments', 'comment', 'description', 'remarks'],
-        'campaign_run_date': ['campaign run date', 'campaign_run_date'],
     }
 
     for field, aliases in header_aliases.items():
@@ -5028,7 +5019,6 @@ def import_content_items(request):
         priority = match_choice(raw_priority, valid_priorities) or 'Medium'
 
         notes = row.get(mapped.get('notes', ''), '').strip() or None
-        campaign_run_date = safe_parse_date(row.get(mapped.get('campaign_run_date', ''), ''))
 
         try:
             with transaction.atomic():
@@ -5042,7 +5032,6 @@ def import_content_items(request):
                     status=status,
                     priority=priority,
                     notes=notes,
-                    campaign_run_date=campaign_run_date,
                 )
                 imported_count += 1
         except Exception as ex:
