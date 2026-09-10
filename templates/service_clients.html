@@ -33,7 +33,6 @@
                         <th class="px-3 py-2">Name</th>
                         <th class="px-3 py-2">Company</th>
                         <th class="px-3 py-2 text-right">Contract Value</th>
-                        <th class="px-3 py-2 text-right">Paid Amount</th>
                         <th class="px-3 py-2 text-center">Status</th>
                         <th class="px-3 py-2 text-right"></th>
                     </tr>
@@ -55,10 +54,9 @@
                         <td class="px-3 py-2.5 text-right font-bold">
                             {% if client.total_value and client.total_value > 0.00 %}
                                 ₹{{ client.total_value|floatformat:2 }}
+                            {% else %}
+                                ₹0.00
                             {% endif %}
-                        </td>
-                        <td class="px-3 py-2.5 text-right font-bold text-primary">
-                            ₹{{ client.total_paid|default:"0.00"|floatformat:2 }}
                         </td>
                         <td class="px-3 py-2.5 text-center">
                             <div class="relative inline-block w-full max-w-[130px]">
@@ -80,7 +78,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="5" class="p-12 text-center text-secondary">
+                        <td colspan="6" class="p-12 text-center text-secondary">
                             <span class="material-symbols-outlined text-5xl mb-2 opacity-50">business</span>
                             <p class="font-bold">No clients found for this service.</p>
                             <p class="text-xs mt-1">Clients will appear here once qualified leads are assigned to this service.</p>

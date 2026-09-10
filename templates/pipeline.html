@@ -17,31 +17,31 @@
     <div class="mb-8 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 min-w-0">
         <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-200/80">
             <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider block">Weighted Forecast</span>
-            <h3 class="text-2xl font-extrabold text-brand-600 mt-1">₹{{ weighted_forecast|floatformat:0 }}</h3>
+            <h3 id="statWeightedForecast" class="text-2xl font-extrabold text-brand-600 mt-1">₹{{ weighted_forecast|floatformat:0 }}</h3>
             <div class="mt-2 flex items-center gap-1 text-emerald-600 text-xs font-bold">
                 <i data-lucide="trending-up" class="w-3.5 h-3.5"></i>
-                <span>12% vs last month</span>
+                <span>Probability weighted</span>
             </div>
         </div>
 
         <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-200/80">
             <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider block">Total Pipeline Value</span>
-            <h3 class="text-2xl font-extrabold text-slate-900 mt-1">₹{{ total_pipeline|floatformat:0 }}</h3>
-            <p class="text-xs font-medium text-slate-400 mt-2">{{ total_deals }} Active Deals</p>
+            <h3 id="statTotalPipeline" class="text-2xl font-extrabold text-slate-900 mt-1">₹{{ total_pipeline|floatformat:0 }}</h3>
+            <p id="statTotalDeals" class="text-xs font-medium text-slate-400 mt-2">{{ total_deals }} Active Deals</p>
         </div>
 
         <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-200/80">
             <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider block">Pipeline Win Rate</span>
-            <h3 class="text-2xl font-extrabold text-emerald-700 mt-1">{{ win_rate|floatformat:1 }}%</h3>
+            <h3 id="statWinRate" class="text-2xl font-extrabold text-emerald-700 mt-1">{{ win_rate|floatformat:1 }}%</h3>
             <div class="mt-2.5 w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                <div class="bg-emerald-500 h-full rounded-full" style="width: {{ win_rate }}%"></div>
+                <div id="statWinRateBar" class="bg-emerald-500 h-full rounded-full transition-all duration-500" style="width: {{ win_rate }}%"></div>
             </div>
         </div>
 
         <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-200/80">
             <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider block">Avg. Deal Velocity</span>
             <h3 class="text-2xl font-extrabold text-slate-900 mt-1">42 Days</h3>
-            <p class="text-xs font-medium text-slate-400 mt-2">-3 days vs avg</p>
+            <p class="text-xs font-medium text-slate-400 mt-2">Active pipeline cycle</p>
         </div>
     </div>
 
@@ -217,19 +217,63 @@
         }
 
         function recalculateColumns() {
+            let totalPipeline = 0;
+            let wonTotal = 0;
+            let totalDeals = 0;
+            let wonCount = 0;
+            let weightedForecast = 0;
+
+            const weights = {
+                'New': 0.10,
+                'Qualified': 0.30,
+                'Proposal': 0.60,
+                'Negotiation': 0.80,
+                'Won': 1.00,
+                'Lost': 0.00
+            };
+
             dropZones.forEach(zone => {
+                const stage = zone.getAttribute('data-stage');
                 const cardsInZone = zone.querySelectorAll('.lead-card');
-                let total = 0;
+                let stageTotal = 0;
                 cardsInZone.forEach(c => {
-                    total += parseFloat(c.getAttribute('data-value') || 0);
+                    stageTotal += parseFloat(c.getAttribute('data-value') || 0);
                 });
+
+                totalDeals += cardsInZone.length;
+                if (stage === 'Won') {
+                    wonCount += cardsInZone.length;
+                    wonTotal += stageTotal;
+                }
+
+                if (stage !== 'Lost') {
+                    totalPipeline += stageTotal;
+                    weightedForecast += stageTotal * (weights[stage] !== undefined ? weights[stage] : 0.25);
+                }
 
                 const countSpan = zone.querySelector('.column-count');
                 const totalSpan = zone.querySelector('.column-total');
                 
                 if (countSpan) countSpan.textContent = cardsInZone.length;
-                if (totalSpan) totalSpan.childNodes[0].textContent = `₹${total.toLocaleString('en-US', {maximumFractionDigits: 0})} • `;
+                if (totalSpan) totalSpan.childNodes[0].textContent = `₹${stageTotal.toLocaleString('en-US', {maximumFractionDigits: 0})} • `;
             });
+
+            const totalPipelineEl = document.getElementById('statTotalPipeline');
+            if (totalPipelineEl) totalPipelineEl.textContent = `₹${totalPipeline.toLocaleString('en-US', {maximumFractionDigits: 0})}`;
+            
+            const weightedForecastEl = document.getElementById('statWeightedForecast');
+            if (weightedForecastEl) weightedForecastEl.textContent = `₹${weightedForecast.toLocaleString('en-US', {maximumFractionDigits: 0})}`;
+
+            const totalDealsEl = document.getElementById('statTotalDeals');
+            if (totalDealsEl) totalDealsEl.textContent = `${totalDeals} Active Deals`;
+
+            const winRateEl = document.getElementById('statWinRate');
+            if (winRateEl) {
+                const rate = totalDeals > 0 ? ((wonCount / totalDeals) * 100).toFixed(1) : '0.0';
+                winRateEl.textContent = `${rate}%`;
+                const bar = document.getElementById('statWinRateBar');
+                if (bar) bar.style.width = `${rate}%`;
+            }
         }
     });
 </script>
