@@ -1744,26 +1744,46 @@ def leads_view(request):
 @page_permission_required('leads')
 def pipeline_view(request):
     org = request.user.profile.organization
-    leads_qs = Lead.objects.filter(organization=org, is_client=False)
+    leads_qs = Lead.objects.filter(organization=org)
     
-    # Calculate Forecast details
-    total_pipeline = leads_qs.aggregate(Sum('value'))['value__sum'] or 0.00
-    won_leads = leads_qs.filter(stage='Won')
-    total_deals = leads_qs.count()
-    win_rate = (won_leads.count() / total_deals * 100) if total_deals > 0 else 0.0
-    weighted_forecast = float(total_pipeline) * 0.25 # Simple weighted forecast metric
-    
-    # Group leads by stage
     stages = ['New', 'Qualified', 'Proposal', 'Negotiation', 'Won', 'Lost']
+    stage_weights = {
+        'New': 0.10,
+        'Qualified': 0.30,
+        'Proposal': 0.60,
+        'Negotiation': 0.80,
+        'Won': 1.00,
+        'Lost': 0.00
+    }
+    
     pipeline_stages = {}
+    weighted_forecast = 0.0
+    total_pipeline = 0.0
+    total_deals = 0
+    won_count = 0
+    lost_count = 0
+
     for st in stages:
-        stage_leads = leads_qs.filter(stage=st)
-        stage_total = stage_leads.aggregate(Sum('value'))['value__sum'] or 0.00
+        stage_leads = leads_qs.filter(stage=st).order_by('-created_at')
+        stage_total = float(stage_leads.aggregate(Sum('value'))['value__sum'] or 0.00)
         pipeline_stages[st] = {
             'leads': stage_leads,
-            'total_value': stage_total
+            'total_value': stage_total,
+            'count': stage_leads.count()
         }
+        total_deals += stage_leads.count()
+        if st == 'Won':
+            won_count = stage_leads.count()
+        elif st == 'Lost':
+            lost_count = stage_leads.count()
         
+        if st != 'Lost':
+            total_pipeline += stage_total
+            weighted_forecast += stage_total * stage_weights.get(st, 0.25)
+        
+    resolved_deals = won_count + lost_count
+    win_rate = round((won_count / resolved_deals * 100) if resolved_deals > 0 else (won_count / total_deals * 100 if total_deals > 0 else 0.0), 1)
+    
     owners = UserProfile.objects.filter(organization=org)
 
     context = {
@@ -1786,26 +1806,23 @@ def update_lead_stage(request):
         
         try:
             lead = Lead.objects.get(id=lead_id, organization=org)
-            old_stage = lead.status if lead.is_client else lead.stage
+            old_stage = lead.stage or lead.status
             
-            if lead.is_client:
-                lead.status = stage
-            else:
-                lead.stage = stage
-                # Align status
-                if stage in ['New', 'Qualified', 'Lost']:
-                    lead.status = stage
-                elif stage in ['Proposal', 'Negotiation']:
-                    lead.status = 'Contacted'
-                elif stage == 'Won':
-                    lead.status = 'Qualified'
-                    
-                if stage == 'Won' or stage == 'Qualified' or lead.status == 'Qualified':
-                    lead.is_client = True
-                    from .models import ClientStatus
-                    status_obj = ClientStatus.objects.filter(organization=org).first()
-                    lead.status = status_obj.name if status_obj else 'Active'
-                    
+            lead.stage = stage
+            if stage == 'Won':
+                lead.status = 'Won'
+                lead.is_client = True
+            elif stage == 'Lost':
+                lead.status = 'Lost'
+            elif stage == 'Qualified':
+                lead.status = 'Qualified'
+            elif stage == 'Proposal':
+                lead.status = 'Proposal'
+            elif stage == 'Negotiation':
+                lead.status = 'Discussion'
+            elif stage == 'New':
+                lead.status = 'New'
+                
             lead.save()
             
             # Log activity
@@ -1814,7 +1831,7 @@ def update_lead_stage(request):
                 type='Stage Update',
                 description=f"Moved stage from {old_stage} to {stage}."
             )
-            return JsonResponse({'success': True})
+            return JsonResponse({'success': True, 'stage': stage})
         except Lead.DoesNotExist:
             return JsonResponse({'success': False, 'error': 'Lead not found.'})
         except Exception as e:
