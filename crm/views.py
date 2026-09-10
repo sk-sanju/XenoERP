@@ -10,7 +10,7 @@ from django.db.models import Sum, Q
 from django.utils import timezone
 from django.core.paginator import Paginator
 from django.contrib import messages
-from .models import Organization, UserProfile, Lead, Activity, Task, TaskTodo, TaskFile, TaskMilestone, Meeting, Event, LeadStatus, get_default_badge_class, StaffRole, Service, Ticket, Agreement, AgreementService, ClientResponsibility, Deliverable, Campaign, ContentDropdownOption, SystemNotification
+from .models import Organization, UserProfile, Lead, Activity, Task, TaskTodo, TaskFile, TaskMilestone, Meeting, Event, LeadStatus, get_default_badge_class, StaffRole, Service, Ticket, Agreement, AgreementService, ClientResponsibility, Deliverable, Campaign, ContentDropdownOption, SystemNotification, Quotation
 from datetime import datetime, timedelta
 import io, json
 from .forms import EventForm, ProfileForm
@@ -1203,63 +1203,256 @@ def logout_view(request):
 def dashboard_view(request):
     org = request.user.profile.organization
     
-    # Base leads query
-    leads_qs = Lead.objects.filter(organization=org)
+    period = request.GET.get('period', 'all')
+    chart_metric = request.GET.get('chart_metric', 'revenue') # 'revenue', 'deals', 'leads'
+    chart_range = request.GET.get('chart_range', '6m') # '7d', '30d', '6m', '1y', 'all'
+    is_ajax = (request.headers.get('x-requested-with') == 'XMLHttpRequest') or (request.GET.get('format') == 'json')
+
+    now = timezone.now()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     
-    # 1. Total Revenue (Value of leads in 'Won' stage)
-    won_leads = leads_qs.filter(stage='Won')
-    total_revenue = won_leads.aggregate(Sum('value'))['value__sum'] or 0.00
+    start_date = None
+    end_date = None
+    prev_start_date = None
+    prev_end_date = None
+
+    if period == 'today':
+        start_date = today_start
+        end_date = now
+        prev_start_date = today_start - timedelta(days=1)
+        prev_end_date = today_start
+    elif period == '7d':
+        start_date = now - timedelta(days=7)
+        end_date = now
+        prev_start_date = now - timedelta(days=14)
+        prev_end_date = start_date
+    elif period == '30d':
+        start_date = now - timedelta(days=30)
+        end_date = now
+        prev_start_date = now - timedelta(days=60)
+        prev_end_date = start_date
+    elif period == 'this_month':
+        start_date = today_start.replace(day=1)
+        end_date = now
+        last_month_end = start_date - timedelta(microseconds=1)
+        prev_start_date = last_month_end.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        prev_end_date = start_date
+    elif period == 'last_month':
+        this_month_start = today_start.replace(day=1)
+        last_month_end = this_month_start - timedelta(microseconds=1)
+        start_date = last_month_end.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        end_date = this_month_start
+        prev_month_end = start_date - timedelta(microseconds=1)
+        prev_start_date = prev_month_end.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        prev_end_date = start_date
+    elif period == 'this_quarter':
+        q_month = ((now.month - 1) // 3) * 3 + 1
+        start_date = today_start.replace(month=q_month, day=1)
+        end_date = now
+        prev_q_end = start_date - timedelta(microseconds=1)
+        prev_q_month = ((prev_q_end.month - 1) // 3) * 3 + 1
+        prev_start_date = prev_q_end.replace(month=prev_q_month, day=1, hour=0, minute=0, second=0, microsecond=0)
+        prev_end_date = start_date
+    elif period == 'this_year':
+        start_date = today_start.replace(month=1, day=1)
+        end_date = now
+        prev_start_date = today_start.replace(year=now.year - 1, month=1, day=1)
+        prev_end_date = start_date
+    else: # 'all'
+        period = 'all'
+        start_date = None
+        end_date = None
+        prev_start_date = None
+        prev_end_date = None
+
+    # Base QuerySets
+    leads_all_qs = Lead.objects.filter(organization=org)
     
-    # 2. Total Leads Count
-    total_leads = leads_qs.filter(is_client=False).count()
+    if start_date:
+        if end_date:
+            period_leads_qs = leads_all_qs.filter(created_at__gte=start_date, created_at__lte=end_date)
+        else:
+            period_leads_qs = leads_all_qs.filter(created_at__gte=start_date)
+    else:
+        period_leads_qs = leads_all_qs
+
+    if prev_start_date and prev_end_date:
+        prev_leads_qs = leads_all_qs.filter(created_at__gte=prev_start_date, created_at__lt=prev_end_date)
+    else:
+        prev_leads_qs = None
+
+    # 1. Total Revenue
+    won_leads_period = period_leads_qs.filter(stage='Won')
+    total_revenue = float(won_leads_period.aggregate(Sum('value'))['value__sum'] or 0.00)
     
-    # 3. Conversion Rate (Won Leads / Total Leads + Won Leads)
-    base_for_conversion = leads_qs.filter(is_client=False).count() + won_leads.count()
-    conversion_rate = (won_leads.count() / base_for_conversion * 100) if base_for_conversion > 0 else 0.0
+    if prev_leads_qs is not None:
+        prev_won = prev_leads_qs.filter(stage='Won')
+        prev_revenue = float(prev_won.aggregate(Sum('value'))['value__sum'] or 0.00)
+        if prev_revenue > 0:
+            revenue_trend = round(((total_revenue - prev_revenue) / prev_revenue) * 100, 1)
+        else:
+            revenue_trend = 100.0 if total_revenue > 0 else 0.0
+    else:
+        first_day_this_month = today_start.replace(day=1)
+        last_day_last_month = first_day_this_month - timedelta(days=1)
+        first_day_last_month = last_day_last_month.replace(day=1)
+        rev_this_month = float(leads_all_qs.filter(stage='Won', created_at__gte=first_day_this_month).aggregate(Sum('value'))['value__sum'] or 0.00)
+        rev_last_month = float(leads_all_qs.filter(stage='Won', created_at__gte=first_day_last_month, created_at__lt=first_day_this_month).aggregate(Sum('value'))['value__sum'] or 0.00)
+        revenue_trend = round(((rev_this_month - rev_last_month) / rev_last_month * 100) if rev_last_month > 0 else (100.0 if rev_this_month > 0 else 0.0), 1)
+
+    # 2. Total Leads
+    total_leads = period_leads_qs.filter(is_client=False).count()
+    first_day_this_month = today_start.replace(day=1)
+    leads_this_month = leads_all_qs.filter(is_client=False, created_at__gte=first_day_this_month).count()
     
-    # 4. Pending Tasks count
+    if prev_leads_qs is not None:
+        prev_leads_count = prev_leads_qs.filter(is_client=False).count()
+        if prev_leads_count > 0:
+            leads_trend = round(((total_leads - prev_leads_count) / prev_leads_count) * 100, 1)
+        else:
+            leads_trend = 100.0 if total_leads > 0 else 0.0
+    else:
+        last_day_last_month = first_day_this_month - timedelta(days=1)
+        first_day_last_month = last_day_last_month.replace(day=1)
+        leads_last_month = leads_all_qs.filter(is_client=False, created_at__gte=first_day_last_month, created_at__lt=first_day_this_month).count()
+        leads_trend = round(((leads_this_month - leads_last_month) / leads_last_month * 100) if leads_last_month > 0 else (100.0 if leads_this_month > 0 else 0.0), 1)
+
+    # 3. Conversion Rate
+    base_for_conversion = total_leads + won_leads_period.count()
+    conversion_rate = round((won_leads_period.count() / base_for_conversion * 100) if base_for_conversion > 0 else 0.0, 1)
+    
+    if prev_leads_qs is not None:
+        prev_won_count = prev_leads_qs.filter(stage='Won').count()
+        prev_base = prev_leads_qs.filter(is_client=False).count() + prev_won_count
+        prev_conversion = (prev_won_count / prev_base * 100) if prev_base > 0 else 0.0
+        conversion_trend = round(conversion_rate - prev_conversion, 1)
+    else:
+        conversion_trend = 0.0
+
+    # 4. Tasks
     tasks_qs = Task.objects.filter(lead__organization=org)
     active_tasks_count = tasks_qs.filter(completed=False).count()
     completed_tasks_count = tasks_qs.filter(completed=True).count()
-    tasks_due_today = tasks_qs.filter(due_date=timezone.now().date()).count() if hasattr(Task, 'due_date') else 0
+    tasks_due_today = tasks_qs.filter(completed=False, due_date=today_start.date()).count() if hasattr(Task, 'due_date') else 0
     total_tasks_count = tasks_qs.count()
-    task_completion_rate = (completed_tasks_count / total_tasks_count * 100) if total_tasks_count > 0 else 0.0
-    
-    # 4b. Active Deals
-    active_deals_qs = leads_qs.filter(is_client=False).exclude(stage__in=['Won', 'Lost'])
+    task_completion_rate = round((completed_tasks_count / total_tasks_count * 100) if total_tasks_count > 0 else 0.0, 1)
+
+    pending_tasks_list = []
+    for t in tasks_qs.filter(completed=False).order_by('due_date', '-created_at')[:5]:
+        pending_tasks_list.append({
+            'id': t.id,
+            'title': t.title,
+            'lead_name': t.lead.name if t.lead else 'General',
+            'lead_id': t.lead.id if t.lead else None,
+            'due_date': t.due_date.strftime('%b %d') if hasattr(t, 'due_date') and t.due_date else None,
+            'is_overdue': bool(hasattr(t, 'due_date') and t.due_date and t.due_date < today_start.date()),
+            'priority': getattr(t, 'priority', 'Normal') or 'Normal',
+        })
+
+    # 5. Sales Documents
+    quotation_count = Quotation.objects.filter(organization=org).count()
+    agreement_count = Agreement.objects.filter(organization=org).count()
+
+    # 6. Active Deals
+    active_deals_qs = leads_all_qs.filter(is_client=False).exclude(stage__in=['Won', 'Lost'])
     active_deals_count = active_deals_qs.count()
-    active_deals_value = active_deals_qs.aggregate(Sum('value'))['value__sum'] or 0.00
-    
-    # 4c. Client Details
-    total_clients_count = leads_qs.filter(is_client=True).count()
-    active_clients_count = leads_qs.filter(is_client=True).exclude(status='Lost').count()
-    
-    # 5. New Leads (ordered by created_at desc)
-    new_leads = leads_qs.filter(is_client=False).order_by('-created_at')
-    
-    # 6. Recent activities
-    recent_activities = Activity.objects.filter(lead__organization=org).order_by('-timestamp')[:5]
-    
-    # 7. Upcoming meetings
-    upcoming_meetings = Event.objects.filter(
-        organization=org, 
-        start_time__gte=timezone.now(),
-        color__in=['#004ac6', '#10b981']
-    ).order_by('start_time')[:3]
-    
-    # 8. Sales Funnel stats (status counts)
+    active_deals_value = float(active_deals_qs.aggregate(Sum('value'))['value__sum'] or 0.00)
+
+    # 7. Total Clients
+    total_clients_count = leads_all_qs.filter(is_client=True).count()
+    active_clients_count = leads_all_qs.filter(is_client=True).exclude(status='Lost').count()
+    new_clients_this_month = leads_all_qs.filter(is_client=True, created_at__gte=first_day_this_month).count()
+    new_clients_in_period = period_leads_qs.filter(is_client=True).count()
+
+    # 8. Real Leads Sparkline (Last 7 Days daily counts)
+    sparkline_labels = []
+    sparkline_values = []
+    for i in range(6, -1, -1):
+        day_date = today_start.date() - timedelta(days=i)
+        day_start = timezone.make_aware(datetime.combine(day_date, datetime.min.time()))
+        day_end = timezone.make_aware(datetime.combine(day_date, datetime.max.time()))
+        day_cnt = leads_all_qs.filter(is_client=False, created_at__gte=day_start, created_at__lte=day_end).count()
+        sparkline_labels.append(day_date.strftime('%a'))
+        sparkline_values.append(day_cnt)
+
+    # 9. Dynamic Revenue & Performance Chart Series
+    trend_labels = []
+    trend_revenue = []
+    trend_deals = []
+    trend_leads = []
+
+    if chart_range == '7d':
+        for i in range(6, -1, -1):
+            d = today_start.date() - timedelta(days=i)
+            d_start = timezone.make_aware(datetime.combine(d, datetime.min.time()))
+            d_end = timezone.make_aware(datetime.combine(d, datetime.max.time()))
+            d_won = leads_all_qs.filter(stage='Won', created_at__gte=d_start, created_at__lte=d_end)
+            d_rev = float(d_won.aggregate(Sum('value'))['value__sum'] or 0)
+            d_cnt = d_won.count()
+            d_leads_cnt = leads_all_qs.filter(is_client=False, created_at__gte=d_start, created_at__lte=d_end).count()
+            
+            trend_labels.append(d.strftime('%b %d'))
+            trend_revenue.append(d_rev)
+            trend_deals.append(d_cnt)
+            trend_leads.append(d_leads_cnt)
+    elif chart_range == '30d':
+        for i in range(29, -1, -1):
+            d = today_start.date() - timedelta(days=i)
+            d_start = timezone.make_aware(datetime.combine(d, datetime.min.time()))
+            d_end = timezone.make_aware(datetime.combine(d, datetime.max.time()))
+            d_won = leads_all_qs.filter(stage='Won', created_at__gte=d_start, created_at__lte=d_end)
+            d_rev = float(d_won.aggregate(Sum('value'))['value__sum'] or 0)
+            d_cnt = d_won.count()
+            d_leads_cnt = leads_all_qs.filter(is_client=False, created_at__gte=d_start, created_at__lte=d_end).count()
+            
+            trend_labels.append(d.strftime('%b %d'))
+            trend_revenue.append(d_rev)
+            trend_deals.append(d_cnt)
+            trend_leads.append(d_leads_cnt)
+    elif chart_range == '1y':
+        for i in range(11, -1, -1):
+            m_date = (today_start.replace(day=1) - timedelta(days=i*30)).replace(day=1)
+            if m_date.month == 12:
+                next_m = m_date.replace(year=m_date.year+1, month=1)
+            else:
+                next_m = m_date.replace(month=m_date.month+1)
+            m_won = leads_all_qs.filter(stage='Won', created_at__gte=m_date, created_at__lt=next_m)
+            m_rev = float(m_won.aggregate(Sum('value'))['value__sum'] or 0)
+            m_cnt = m_won.count()
+            m_leads_cnt = leads_all_qs.filter(is_client=False, created_at__gte=m_date, created_at__lt=next_m).count()
+            
+            trend_labels.append(m_date.strftime('%b %y').upper())
+            trend_revenue.append(m_rev)
+            trend_deals.append(m_cnt)
+            trend_leads.append(m_leads_cnt)
+    else: # '6m' default or 'all'
+        for i in range(5, -1, -1):
+            m_date = (today_start.replace(day=1) - timedelta(days=i*30)).replace(day=1)
+            if m_date.month == 12:
+                next_m = m_date.replace(year=m_date.year+1, month=1)
+            else:
+                next_m = m_date.replace(month=m_date.month+1)
+            m_won = leads_all_qs.filter(stage='Won', created_at__gte=m_date, created_at__lt=next_m)
+            m_rev = float(m_won.aggregate(Sum('value'))['value__sum'] or 0)
+            m_cnt = m_won.count()
+            m_leads_cnt = leads_all_qs.filter(is_client=False, created_at__gte=m_date, created_at__lt=next_m).count()
+            
+            trend_labels.append(m_date.strftime('%b').upper())
+            trend_revenue.append(m_rev)
+            trend_deals.append(m_cnt)
+            trend_leads.append(m_leads_cnt)
+
+    # 10. Funnel Stats
     client_statuses = get_or_create_dynamic_statuses(org, 'clients', ClientStatus)
     funnel_items = []
-    
-    # Calculate prospects base (first status or sum)
-    # usually funnel uses first stage as base
     prospects_count = 0
     if client_statuses.exists():
-        prospects_count = leads_qs.filter(is_client=True, status=client_statuses.first().name).count()
+        prospects_count = period_leads_qs.filter(is_client=True, status=client_statuses.first().name).count()
+        if prospects_count == 0:
+            prospects_count = period_leads_qs.filter(is_client=True).count()
         
     for idx, cs in enumerate(client_statuses):
-        count = leads_qs.filter(is_client=True, status=cs.name).count()
-        
+        count = period_leads_qs.filter(is_client=True, status=cs.name).count()
         if idx == 0:
             rate = 100.0 if count > 0 else 0.0
         else:
@@ -1267,89 +1460,139 @@ def dashboard_view(request):
             
         funnel_items.append({
             'name': cs.name,
-            'color': cs.color_hex,
+            'color': cs.color_hex or '#2563eb',
             'count': count,
-            'rate': rate
+            'rate': round(rate, 1)
         })
 
-
-
-    # 10. Revenue Trend data (value of won leads grouped by month for the last 6 months)
-    from django.db.models.functions import TruncMonth
-    from datetime import timedelta
-    
-    six_months_ago = timezone.now() - timedelta(days=180)
-    monthly_revenue_qs = leads_qs.filter(stage='Won', created_at__gte=six_months_ago)\
-        .annotate(month=TruncMonth('created_at'))\
-        .values('month')\
-        .annotate(revenue=Sum('value'))\
-        .order_by('month')
-        
-    trend_labels = []
-    trend_values = []
-    
-    current_date = timezone.now()
-    for i in range(5, -1, -1):
-        m_date = current_date - timedelta(days=i*30)
-        m_label = m_date.strftime('%b').upper()
-        trend_labels.append(m_label)
-        
-        rev_val = 0
-        for item in monthly_revenue_qs:
-            if item['month'] and item['month'].year == m_date.year and item['month'].month == m_date.month:
-                rev_val = float(item['revenue'] or 0)
-                break
-        trend_values.append(rev_val)
-
-    # Trend calculations
-    today_date = timezone.now().date()
-    first_day_this_month = today_date.replace(day=1)
-    last_day_last_month = first_day_this_month - timedelta(days=1)
-    first_day_last_month = last_day_last_month.replace(day=1)
-
-    leads_this_month = leads_qs.filter(is_client=False, created_at__gte=first_day_this_month).count()
-    leads_last_month = leads_qs.filter(is_client=False, created_at__gte=first_day_last_month, created_at__lt=first_day_this_month).count()
-    
-    leads_trend = ((leads_this_month - leads_last_month) / leads_last_month * 100) if leads_last_month > 0 else (100.0 if leads_this_month > 0 else 0.0)
-    
-    new_clients_this_month = leads_qs.filter(is_client=True, created_at__gte=first_day_this_month).count()
-
-    won_this_month = leads_qs.filter(stage='Won', created_at__gte=first_day_this_month)
-    won_last_month = leads_qs.filter(stage='Won', created_at__gte=first_day_last_month, created_at__lt=first_day_this_month)
-    
-    rev_this_month = won_this_month.aggregate(Sum('value'))['value__sum'] or 0.00
-    rev_last_month = won_last_month.aggregate(Sum('value'))['value__sum'] or 0.00
-    
-    revenue_trend = ((float(rev_this_month) - float(rev_last_month)) / float(rev_last_month) * 100) if rev_last_month > 0 else (100.0 if rev_this_month > 0 else 0.0)
-
-    conv_this_month = (won_this_month.count() / leads_this_month * 100) if leads_this_month > 0 else 0.0
-    conv_last_month = (won_last_month.count() / leads_last_month * 100) if leads_last_month > 0 else 0.0
-    conversion_trend = conv_this_month - conv_last_month
-
-    # 11. Leads by Service
+    # 11. Leads by Service Distribution
     services_qs = Service.objects.filter(organization=org)
     service_labels = []
     service_data = []
     for s in services_qs:
-        count = leads_qs.filter(services=s).count()
+        count = period_leads_qs.filter(services=s).count()
         if count > 0:
             service_labels.append(s.name)
             service_data.append(count)
-    
     if not service_labels:
-        service_labels = ["Uncategorized"]
-        service_data = [leads_qs.count() or 1]
+        service_labels = ["General / Uncategorized"]
+        service_data = [period_leads_qs.count() or 0]
 
+    # 12. Leads by Stage Distribution
+    stage_counts = {}
+    for stage_choice in ['New', 'Contacted', 'Qualified', 'Discussion', 'Proposal', 'Won', 'Lost']:
+        cnt = period_leads_qs.filter(stage=stage_choice).count()
+        if cnt > 0:
+            stage_counts[stage_choice] = cnt
+    stage_labels = list(stage_counts.keys()) or ['New']
+    stage_data = list(stage_counts.values()) or [0]
 
+    # 13. Recent Leads
+    recent_leads_qs = period_leads_qs.filter(is_client=False).order_by('-created_at')[:8]
+    recent_leads_data = []
+    for l in recent_leads_qs:
+        recent_leads_data.append({
+            'id': l.id,
+            'name': l.name,
+            'email': l.email or '',
+            'company': l.company or '',
+            'stage': l.stage or 'New',
+            'value': float(l.value or 0),
+            'profile_image_url': l.profile_image_url if hasattr(l, 'profile_image_url') and l.profile_image_url else None,
+            'created_at_formatted': l.created_at.strftime('%b %d, %Y') if l.created_at else '',
+        })
 
-    import json
+    # 14. Recent Activities
+    recent_activities_qs = Activity.objects.filter(lead__organization=org).order_by('-timestamp')[:5]
+    recent_activities_data = []
+    for a in recent_activities_qs:
+        recent_activities_data.append({
+            'description': a.description,
+            'lead_name': a.lead.name if a.lead else 'General',
+            'timestamp_str': a.timestamp.strftime('%d %b, %H:%M') if a.timestamp else '',
+            'timesince': f"{int((now - a.timestamp).total_seconds() // 60)}m ago" if a.timestamp and (now - a.timestamp).total_seconds() < 3600 else (f"{int((now - a.timestamp).total_seconds() // 3600)}h ago" if a.timestamp and (now - a.timestamp).total_seconds() < 86400 else (a.timestamp.strftime('%b %d') if a.timestamp else '')),
+        })
+
+    # 15. Upcoming Meetings
+    upcoming_meetings_qs = Event.objects.filter(
+        organization=org, 
+        start_time__gte=timezone.now(),
+        color__in=['#004ac6', '#10b981']
+    ).order_by('start_time')[:4]
+    
+    upcoming_meetings_data = []
+    for m in upcoming_meetings_qs:
+        upcoming_meetings_data.append({
+            'title': m.title,
+            'month': m.start_time.strftime('%b'),
+            'day': m.start_time.strftime('%d'),
+            'time_str': m.start_time.strftime('%I:%M %p'),
+            'owner_name': m.owner.get_full_name() or m.owner.username if m.owner else 'Team',
+        })
+
+    # If AJAX request, return structured JSON
+    if is_ajax:
+        return JsonResponse({
+            'success': True,
+            'period': period,
+            'chart_range': chart_range,
+            'chart_metric': chart_metric,
+            'metrics': {
+                'total_revenue': total_revenue,
+                'revenue_trend': revenue_trend,
+                'total_leads': total_leads,
+                'leads_trend': leads_trend,
+                'leads_this_month': leads_this_month,
+                'conversion_rate': conversion_rate,
+                'conversion_trend': conversion_trend,
+                'active_tasks_count': active_tasks_count,
+                'completed_tasks_count': completed_tasks_count,
+                'tasks_due_today': tasks_due_today,
+                'task_completion_rate': task_completion_rate,
+                'active_deals_count': active_deals_count,
+                'active_deals_value': active_deals_value,
+                'total_clients_count': total_clients_count,
+                'active_clients_count': active_clients_count,
+                'new_clients_this_month': new_clients_this_month,
+                'new_clients_in_period': new_clients_in_period,
+                'quotation_count': quotation_count,
+                'agreement_count': agreement_count,
+            },
+            'sparkline': {
+                'labels': sparkline_labels,
+                'values': sparkline_values,
+            },
+            'chart': {
+                'labels': trend_labels,
+                'revenue': trend_revenue,
+                'deals': trend_deals,
+                'leads': trend_leads,
+            },
+            'funnel': funnel_items,
+            'services': {
+                'labels': service_labels,
+                'data': service_data,
+            },
+            'stages': {
+                'labels': stage_labels,
+                'data': stage_data,
+            },
+            'recent_leads': recent_leads_data,
+            'pending_tasks': pending_tasks_list,
+            'recent_activities': recent_activities_data,
+            'upcoming_meetings': upcoming_meetings_data,
+        })
 
     context = {
-        'revenue_trend': round(revenue_trend, 1),
-        'leads_trend': round(leads_trend, 1),
-        'conversion_trend': round(conversion_trend, 1),
+        'period': period,
+        'chart_range': chart_range,
+        'chart_metric': chart_metric,
+        'revenue_trend': revenue_trend,
+        'leads_trend': leads_trend,
+        'conversion_trend': conversion_trend,
         'total_revenue': total_revenue,
         'total_leads': total_leads,
+        'leads_this_month': leads_this_month,
         'conversion_rate': conversion_rate,
         'active_tasks_count': active_tasks_count,
         'completed_tasks_count': completed_tasks_count,
@@ -1360,14 +1603,24 @@ def dashboard_view(request):
         'total_clients_count': total_clients_count,
         'active_clients_count': active_clients_count,
         'new_clients_this_month': new_clients_this_month,
-        'new_leads': new_leads,
-        'recent_activities': recent_activities,
-        'upcoming_meetings': upcoming_meetings,
+        'new_clients_in_period': new_clients_in_period,
+        'quotation_count': quotation_count,
+        'agreement_count': agreement_count,
+        'new_leads': recent_leads_qs,
+        'pending_tasks': pending_tasks_list,
+        'recent_activities': recent_activities_qs,
+        'upcoming_meetings': upcoming_meetings_qs,
         'funnel_items': funnel_items,
+        'sparkline_labels': json.dumps(sparkline_labels),
+        'sparkline_values': json.dumps(sparkline_values),
         'trend_labels': json.dumps(trend_labels),
-        'trend_values': json.dumps(trend_values),
+        'trend_values': json.dumps(trend_revenue),
+        'trend_deals': json.dumps(trend_deals),
+        'trend_leads': json.dumps(trend_leads),
         'service_labels': json.dumps(service_labels),
         'service_data': json.dumps(service_data),
+        'stage_labels': json.dumps(stage_labels),
+        'stage_data': json.dumps(stage_data),
     }
     
     return render(request, 'dashboard.html', context)
