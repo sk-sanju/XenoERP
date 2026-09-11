@@ -4511,7 +4511,29 @@ def notifications_view(request):
                 'url': reverse('customer_support')
             })
 
-    # 5. Recent Activities
+    # 5. Finance Invoices (Overdue / Due soon)
+    if profile.has_access_finance or profile.has_access_finance_invoices:
+        try:
+            from finance.models import Invoice
+            unpaid_invoices = Invoice.objects.filter(
+                organization=org,
+                status__in=['Pending', 'Overdue', 'Unpaid', 'Sent']
+            ).order_by('due_date')[:10]
+            for inv in unpaid_invoices:
+                inv_dt = timezone.make_aware(datetime.datetime.combine(inv.due_date, datetime.time.min)) if inv.due_date and not hasattr(inv.due_date, 'hour') else (inv.created_at or now)
+                unified_feed.append({
+                    'type': 'Invoice',
+                    'title': f"Invoice #{inv.invoice_number or inv.id} - {inv.client.name if hasattr(inv, 'client') and inv.client else 'Client'}",
+                    'description': f"Amount: ₹{getattr(inv, 'total_amount', 0)} | Status: {inv.status}",
+                    'date': inv_dt,
+                    'icon': 'wallet',
+                    'color_class': 'text-teal-600 bg-teal-50 border-teal-200',
+                    'url': reverse('invoices') if 'invoices' in [p.name for p in request.resolver_match.app_names or []] else '#'
+                })
+        except Exception:
+            pass
+
+    # 6. Recent Activities
     if profile.has_access_leads:
         recent_activities = Activity.objects.filter(
             lead__organization=org

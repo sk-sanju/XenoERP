@@ -1,207 +1,612 @@
 {% extends 'base.html' %}
-{% block title %}Notification Settings - XenoCRM{% endblock %}
+
+{% block title %}Notification Settings | XenoCRM ERP{% endblock %}
 
 {% block content %}
-<main class="pt-8 p-margin-edge min-h-screen bg-background">
-  <div class="max-w-3xl mx-auto">
-    <!-- Breadcrumbs -->
-    <div class="flex items-center gap-2 mb-6 font-label-md text-outline">
-      <a href="{% url 'dashboard' %}" class="hover:underline">Dashboard</a>
-      <span class="material-symbols-outlined text-[14px]">chevron_right</span>
-      <span class="text-primary font-bold">Notification Settings</span>
-    </div>
+<div class="p-margin-edge min-h-screen flex flex-col bg-slate-50/60 pb-12">
+  <div class="max-w-4xl mx-auto w-full space-y-6">
 
-    <!-- Notification Settings Form Card -->
-    <div class="glass-card rounded-2xl p-8 border border-outline-variant/30 shadow-xl bg-white space-y-6">
+    <!-- Top Breadcrumb & Navigation -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>
-        <h2 class="font-headline-lg text-headline-lg font-bold text-on-surface">Notification Preferences</h2>
-        <p class="text-secondary text-body-sm mt-1">Configure your personal rules for email digests and real-time in-app dashboard alerts.</p>
+        <div class="flex items-center gap-2 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+          <a href="{% url 'dashboard' %}" class="hover:text-brand-600 transition-colors">Workspace</a>
+          <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-400"></i>
+          <a href="{% url 'settings_dashboard' %}" class="hover:text-brand-600 transition-colors">Settings</a>
+          <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-400"></i>
+          <span class="text-brand-600 font-bold">Notifications</span>
+        </div>
+        <div class="flex items-center gap-3">
+          <h1 class="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">Notification Preferences</h1>
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            Live Sync
+          </span>
+        </div>
+        <p class="text-xs md:text-sm text-slate-500 mt-1">
+          Configure email digests and in-app alerts for pages and business modules authorized for your role.
+        </p>
       </div>
 
-      <form id="notif-settings-form" onsubmit="saveNotifSettings(event)" class="space-y-8">
-        
-        <!-- Category: Calendar -->
-        {% if request.user.profile.has_access_calendar %}
-        <div class="space-y-4">
-          <div class="flex items-center gap-2 border-b border-outline-variant/30 pb-2">
-            <span class="material-symbols-outlined text-primary">calendar_month</span>
-            <h3 class="font-headline-md text-[16px] font-bold text-on-surface">Calendar Meetings</h3>
-          </div>
-          
-          <div class="space-y-4">
-            <div class="flex items-center justify-between">
-              <div>
-                <label class="block text-body-sm font-semibold text-on-surface">Email Digests</label>
-                <p class="text-[11px] text-secondary">Receive daily briefings of upcoming meetings in your inbox.</p>
-              </div>
-              <input type="checkbox" id="email-meetings" class="w-9 h-5 bg-surface-variant rounded-full appearance-none cursor-pointer relative checked:bg-primary transition-all duration-300 before:content-[''] before:absolute before:w-4 before:h-4 before:rounded-full before:bg-white before:top-0.5 before:left-0.5 checked:before:left-4.5 before:transition-all before:duration-300 shadow-inner border border-outline-variant" />
-            </div>
-            <div class="flex items-center justify-between">
-              <div>
-                <label class="block text-body-sm font-semibold text-on-surface">In-App Dashboard Alerts</label>
-                <p class="text-[11px] text-secondary">Show real-time dashboard banner alerts for meeting reminders.</p>
-              </div>
-              <input type="checkbox" id="app-meetings" class="w-9 h-5 bg-surface-variant rounded-full appearance-none cursor-pointer relative checked:bg-primary transition-all duration-300 before:content-[''] before:absolute before:w-4 before:h-4 before:rounded-full before:bg-white before:top-0.5 before:left-0.5 checked:before:left-4.5 before:transition-all before:duration-300 shadow-inner border border-outline-variant" />
-            </div>
-          </div>
-        </div>
-        {% endif %}
-
-        <!-- Category: Projects -->
-        {% if request.user.profile.has_access_projects %}
-        <div class="space-y-4">
-          <div class="flex items-center gap-2 border-b border-outline-variant/30 pb-2">
-            <span class="material-symbols-outlined text-warning">rocket_launch</span>
-            <h3 class="font-headline-md text-[16px] font-bold text-on-surface">Project Tasks & Contracts</h3>
-          </div>
-          
-          <div class="space-y-4">
-            <div class="flex items-center justify-between">
-              <div>
-                <label class="block text-body-sm font-semibold text-on-surface">Email Notifications</label>
-                <p class="text-[11px] text-secondary">Email me when tasks become overdue or agreements are near expiration.</p>
-              </div>
-              <input type="checkbox" id="email-projects" class="w-9 h-5 bg-surface-variant rounded-full appearance-none cursor-pointer relative checked:bg-primary transition-all duration-300 before:content-[''] before:absolute before:w-4 before:h-4 before:rounded-full before:bg-white before:top-0.5 before:left-0.5 checked:before:left-4.5 before:transition-all before:duration-300 shadow-inner border border-outline-variant" />
-            </div>
-            <div class="flex items-center justify-between">
-              <div>
-                <label class="block text-body-sm font-semibold text-on-surface">In-App Dashboard Alerts</label>
-                <p class="text-[11px] text-secondary">Display push notifications when milestones or task targets are assigned.</p>
-              </div>
-              <input type="checkbox" id="app-projects" class="w-9 h-5 bg-surface-variant rounded-full appearance-none cursor-pointer relative checked:bg-primary transition-all duration-300 before:content-[''] before:absolute before:w-4 before:h-4 before:rounded-full before:bg-white before:top-0.5 before:left-0.5 checked:before:left-4.5 before:transition-all before:duration-300 shadow-inner border border-outline-variant" />
-            </div>
-          </div>
-        </div>
-        {% endif %}
-
-        <!-- Category: Customer Support -->
-        {% if request.user.profile.has_access_support %}
-        <div class="space-y-4">
-          <div class="flex items-center gap-2 border-b border-outline-variant/30 pb-2">
-            <span class="material-symbols-outlined text-tertiary">support_agent</span>
-            <h3 class="font-headline-md text-[16px] font-bold text-on-surface">Customer Support</h3>
-          </div>
-          
-          <div class="space-y-4">
-            <div class="flex items-center justify-between">
-              <div>
-                <label class="block text-body-sm font-semibold text-on-surface">Email Digests</label>
-                <p class="text-[11px] text-secondary">Send daily reports of unresolved tickets assigned to my department.</p>
-              </div>
-              <input type="checkbox" id="email-support" class="w-9 h-5 bg-surface-variant rounded-full appearance-none cursor-pointer relative checked:bg-primary transition-all duration-300 before:content-[''] before:absolute before:w-4 before:h-4 before:rounded-full before:bg-white before:top-0.5 before:left-0.5 checked:before:left-4.5 before:transition-all before:duration-300 shadow-inner border border-outline-variant" />
-            </div>
-            <div class="flex items-center justify-between">
-              <div>
-                <label class="block text-body-sm font-semibold text-on-surface">In-App Push Alerts</label>
-                <p class="text-[11px] text-secondary">Pop up real-time badges when client support tickets are escalated.</p>
-              </div>
-              <input type="checkbox" id="app-support" class="w-9 h-5 bg-surface-variant rounded-full appearance-none cursor-pointer relative checked:bg-primary transition-all duration-300 before:content-[''] before:absolute before:w-4 before:h-4 before:rounded-full before:bg-white before:top-0.5 before:left-0.5 checked:before:left-4.5 before:transition-all before:duration-300 shadow-inner border border-outline-variant" />
-            </div>
-          </div>
-        </div>
-        {% endif %}
-
-        <!-- Category: Leads & Activities -->
-        {% if request.user.profile.has_access_leads %}
-        <div class="space-y-4">
-          <div class="flex items-center gap-2 border-b border-outline-variant/30 pb-2">
-            <span class="material-symbols-outlined text-success">history</span>
-            <h3 class="font-headline-md text-[16px] font-bold text-on-surface">Leads & Activities</h3>
-          </div>
-          
-          <div class="space-y-4">
-            <div class="flex items-center justify-between">
-              <div>
-                <label class="block text-body-sm font-semibold text-on-surface">Email Notifications</label>
-                <p class="text-[11px] text-secondary">Email me a summary of recent lead activities and updates.</p>
-              </div>
-              <input type="checkbox" id="email-activities" class="w-9 h-5 bg-surface-variant rounded-full appearance-none cursor-pointer relative checked:bg-primary transition-all duration-300 before:content-[''] before:absolute before:w-4 before:h-4 before:rounded-full before:bg-white before:top-0.5 before:left-0.5 checked:before:left-4.5 before:transition-all before:duration-300 shadow-inner border border-outline-variant" />
-            </div>
-            <div class="flex items-center justify-between">
-              <div>
-                <label class="block text-body-sm font-semibold text-on-surface">In-App Dashboard Alerts</label>
-                <p class="text-[11px] text-secondary">Show real-time notifications for new activities on my assigned leads.</p>
-              </div>
-              <input type="checkbox" id="app-activities" class="w-9 h-5 bg-surface-variant rounded-full appearance-none cursor-pointer relative checked:bg-primary transition-all duration-300 before:content-[''] before:absolute before:w-4 before:h-4 before:rounded-full before:bg-white before:top-0.5 before:left-0.5 checked:before:left-4.5 before:transition-all before:duration-300 shadow-inner border border-outline-variant" />
-            </div>
-          </div>
-        </div>
-        {% endif %}
-
-        <!-- Category: System Alerts -->
-        <div class="space-y-4">
-          <div class="flex items-center gap-2 border-b border-outline-variant/30 pb-2">
-            <span class="material-symbols-outlined text-info">notifications</span>
-            <h3 class="font-headline-md text-[16px] font-bold text-on-surface">System Alerts</h3>
-          </div>
-          
-          <div class="space-y-4">
-            <div class="flex items-center justify-between">
-              <div>
-                <label class="block text-body-sm font-semibold text-on-surface">Email Notifications</label>
-                <p class="text-[11px] text-secondary">Send email notifications for critical system updates and security alerts.</p>
-              </div>
-              <input type="checkbox" id="email-system" class="w-9 h-5 bg-surface-variant rounded-full appearance-none cursor-pointer relative checked:bg-primary transition-all duration-300 before:content-[''] before:absolute before:w-4 before:h-4 before:rounded-full before:bg-white before:top-0.5 before:left-0.5 checked:before:left-4.5 before:transition-all before:duration-300 shadow-inner border border-outline-variant" />
-            </div>
-            <div class="flex items-center justify-between">
-              <div>
-                <label class="block text-body-sm font-semibold text-on-surface">In-App Dashboard Alerts</label>
-                <p class="text-[11px] text-secondary">Display all system notifications in the Notification Center feed.</p>
-              </div>
-              <input type="checkbox" id="app-system" class="w-9 h-5 bg-surface-variant rounded-full appearance-none cursor-pointer relative checked:bg-primary transition-all duration-300 before:content-[''] before:absolute before:w-4 before:h-4 before:rounded-full before:bg-white before:top-0.5 before:left-0.5 checked:before:left-4.5 before:transition-all before:duration-300 shadow-inner border border-outline-variant" />
-            </div>
-          </div>
-        </div>
-
-        <div class="flex justify-end gap-3 pt-6 border-t border-outline-variant/20 mt-8">
-          <a href="{% url 'dashboard' %}" class="px-4 py-2 border border-outline-variant text-secondary rounded-lg hover:bg-slate-50 transition-all">Cancel</a>
-          <button type="submit" class="px-5 py-2 bg-primary text-on-primary font-button rounded-lg shadow hover:opacity-90 active:scale-95 transition-all">Save Preferences</button>
-        </div>
-      </form>
+      <!-- Quick Actions -->
+      <div class="flex items-center gap-2 self-start sm:self-auto">
+        <button type="button" onclick="setAllToggles(true)" class="px-3 py-1.5 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 rounded-xl text-xs font-semibold shadow-2xs transition-all flex items-center gap-1.5 active:scale-95">
+          <i data-lucide="check-check" class="w-3.5 h-3.5 text-emerald-600"></i>
+          <span>Enable All</span>
+        </button>
+        <button type="button" onclick="setAllToggles(false)" class="px-3 py-1.5 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 rounded-xl text-xs font-semibold shadow-2xs transition-all flex items-center gap-1.5 active:scale-95">
+          <i data-lucide="bell-off" class="w-3.5 h-3.5 text-slate-500"></i>
+          <span>Mute All</span>
+        </button>
+      </div>
     </div>
+
+    <!-- Main Settings Form Container -->
+    <form id="notif-settings-form" onsubmit="saveNotifSettings(event)" class="space-y-6">
+
+      <!-- 1. Leads & Pipeline (Permission Guarded) -->
+      {% if request.user.profile.has_access_leads %}
+      <div class="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden transition-all hover:border-slate-300">
+        <div class="p-5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center shrink-0 shadow-2xs">
+              <i data-lucide="users" class="w-4.5 h-4.5"></i>
+            </div>
+            <div>
+              <h2 class="text-sm font-bold text-slate-900">Leads & CRM Pipeline</h2>
+              <p class="text-xs text-slate-500">Alerts on lead assignment, stage updates, and follow-up activities.</p>
+            </div>
+          </div>
+          <span class="text-[11px] font-semibold text-blue-600 bg-blue-50/80 px-2.5 py-0.5 rounded-full border border-blue-100 hidden sm:inline-block">CRM</span>
+        </div>
+
+        <div class="p-5 space-y-4 divide-y divide-slate-100">
+          <div class="flex items-center justify-between pt-2 first:pt-0">
+            <div class="pr-4">
+              <label for="email-leads-assigned" class="text-xs font-bold text-slate-800 block cursor-pointer">New Lead Assignment (Email)</label>
+              <p class="text-[11px] text-slate-500 mt-0.5">Receive immediate email notification when a new prospect is routed to you.</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer shrink-0">
+              <input type="checkbox" id="email-leads-assigned" class="sr-only peer notif-toggle">
+              <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600 shadow-inner"></div>
+            </label>
+          </div>
+
+          <div class="flex items-center justify-between pt-4">
+            <div class="pr-4">
+              <label for="app-leads-alerts" class="text-xs font-bold text-slate-800 block cursor-pointer">Live In-App Lead Alerts</label>
+              <p class="text-[11px] text-slate-500 mt-0.5">Display push notifications and toast alerts when lead inquiries change status.</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer shrink-0">
+              <input type="checkbox" id="app-leads-alerts" class="sr-only peer notif-toggle">
+              <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600 shadow-inner"></div>
+            </label>
+          </div>
+
+          <div class="flex items-center justify-between pt-4">
+            <div class="pr-4">
+              <label for="email-activities" class="text-xs font-bold text-slate-800 block cursor-pointer">Lead Activity Digest</label>
+              <p class="text-[11px] text-slate-500 mt-0.5">Email summaries of call logs, WhatsApp notes, and status updates on your leads.</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer shrink-0">
+              <input type="checkbox" id="email-activities" class="sr-only peer notif-toggle">
+              <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600 shadow-inner"></div>
+            </label>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- 2. Clients & Accounts (Permission Guarded) -->
+      {% if request.user.profile.has_access_clients %}
+      <div class="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden transition-all hover:border-slate-300">
+        <div class="p-5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shrink-0 shadow-2xs">
+              <i data-lucide="building-2" class="w-4.5 h-4.5"></i>
+            </div>
+            <div>
+              <h2 class="text-sm font-bold text-slate-900">Clients & Accounts</h2>
+              <p class="text-xs text-slate-500">Notifications regarding client onboarding and account management.</p>
+            </div>
+          </div>
+          <span class="text-[11px] font-semibold text-emerald-600 bg-emerald-50/80 px-2.5 py-0.5 rounded-full border border-emerald-100 hidden sm:inline-block">Accounts</span>
+        </div>
+
+        <div class="p-5 space-y-4 divide-y divide-slate-100">
+          <div class="flex items-center justify-between pt-2 first:pt-0">
+            <div class="pr-4">
+              <label for="email-clients-new" class="text-xs font-bold text-slate-800 block cursor-pointer">Client Onboarding Notices (Email)</label>
+              <p class="text-[11px] text-slate-500 mt-0.5">Receive email notices when a lead converts into an active service client.</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer shrink-0">
+              <input type="checkbox" id="email-clients-new" class="sr-only peer notif-toggle">
+              <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600 shadow-inner"></div>
+            </label>
+          </div>
+
+          <div class="flex items-center justify-between pt-4">
+            <div class="pr-4">
+              <label for="app-clients-updates" class="text-xs font-bold text-slate-800 block cursor-pointer">Client Profile Updates (In-App)</label>
+              <p class="text-[11px] text-slate-500 mt-0.5">Real-time alerts on client contact edits, billing changes, and status updates.</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer shrink-0">
+              <input type="checkbox" id="app-clients-updates" class="sr-only peer notif-toggle">
+              <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600 shadow-inner"></div>
+            </label>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- 3. Project Tasks & Contracts (Permission Guarded) -->
+      {% if request.user.profile.has_access_projects %}
+      <div class="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden transition-all hover:border-slate-300">
+        <div class="p-5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 border border-amber-100 flex items-center justify-center shrink-0 shadow-2xs">
+              <i data-lucide="folder-kanban" class="w-4.5 h-4.5"></i>
+            </div>
+            <div>
+              <h2 class="text-sm font-bold text-slate-900">Project Tasks & Milestones</h2>
+              <p class="text-xs text-slate-500">Reminders for project task assignments, deadlines, and milestone achievements.</p>
+            </div>
+          </div>
+          <span class="text-[11px] font-semibold text-amber-600 bg-amber-50/80 px-2.5 py-0.5 rounded-full border border-amber-100 hidden sm:inline-block">Projects</span>
+        </div>
+
+        <div class="p-5 space-y-4 divide-y divide-slate-100">
+          <div class="flex items-center justify-between pt-2 first:pt-0">
+            <div class="pr-4">
+              <label for="email-projects" class="text-xs font-bold text-slate-800 block cursor-pointer">Overdue Tasks & Deadline Alerts (Email)</label>
+              <p class="text-[11px] text-slate-500 mt-0.5">Email me when tasks become overdue or agreements approach their delivery deadline.</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer shrink-0">
+              <input type="checkbox" id="email-projects" class="sr-only peer notif-toggle">
+              <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600 shadow-inner"></div>
+            </label>
+          </div>
+
+          <div class="flex items-center justify-between pt-4">
+            <div class="pr-4">
+              <label for="app-projects" class="text-xs font-bold text-slate-800 block cursor-pointer">Task & Milestone Assignments (In-App)</label>
+              <p class="text-[11px] text-slate-500 mt-0.5">Display push notifications when you are assigned new project items or targets.</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer shrink-0">
+              <input type="checkbox" id="app-projects" class="sr-only peer notif-toggle">
+              <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600 shadow-inner"></div>
+            </label>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- 4. Calendar & Meetings (Permission Guarded) -->
+      {% if request.user.profile.has_access_calendar %}
+      <div class="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden transition-all hover:border-slate-300">
+        <div class="p-5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center shrink-0 shadow-2xs">
+              <i data-lucide="calendar" class="w-4.5 h-4.5"></i>
+            </div>
+            <div>
+              <h2 class="text-sm font-bold text-slate-900">Calendar & Meetings</h2>
+              <p class="text-xs text-slate-500">Meeting schedules, client appointments, and reminder notifications.</p>
+            </div>
+          </div>
+          <span class="text-[11px] font-semibold text-indigo-600 bg-indigo-50/80 px-2.5 py-0.5 rounded-full border border-indigo-100 hidden sm:inline-block">Calendar</span>
+        </div>
+
+        <div class="p-5 space-y-4 divide-y divide-slate-100">
+          <div class="flex items-center justify-between pt-2 first:pt-0">
+            <div class="pr-4">
+              <label for="email-meetings" class="text-xs font-bold text-slate-800 block cursor-pointer">Daily Morning Meeting Digest (Email)</label>
+              <p class="text-[11px] text-slate-500 mt-0.5">Receive an automated morning summary of all scheduled meetings for the day.</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer shrink-0">
+              <input type="checkbox" id="email-meetings" class="sr-only peer notif-toggle">
+              <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600 shadow-inner"></div>
+            </label>
+          </div>
+
+          <div class="flex items-center justify-between pt-4">
+            <div class="pr-4">
+              <label for="app-meetings" class="text-xs font-bold text-slate-800 block cursor-pointer">Live Meeting Reminders (In-App)</label>
+              <p class="text-[11px] text-slate-500 mt-0.5">Show real-time dashboard popup and top banner 15 minutes before appointments.</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer shrink-0">
+              <input type="checkbox" id="app-meetings" class="sr-only peer notif-toggle">
+              <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600 shadow-inner"></div>
+            </label>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- 5. Customer Support (Permission Guarded) -->
+      {% if request.user.profile.has_access_support %}
+      <div class="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden transition-all hover:border-slate-300">
+        <div class="p-5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-rose-50 text-rose-600 border border-rose-100 flex items-center justify-center shrink-0 shadow-2xs">
+              <i data-lucide="headset" class="w-4.5 h-4.5"></i>
+            </div>
+            <div>
+              <h2 class="text-sm font-bold text-slate-900">Customer Support & Helpdesk</h2>
+              <p class="text-xs text-slate-500">Service desk tickets, escalations, and client responses.</p>
+            </div>
+          </div>
+          <span class="text-[11px] font-semibold text-rose-600 bg-rose-50/80 px-2.5 py-0.5 rounded-full border border-rose-100 hidden sm:inline-block">Support</span>
+        </div>
+
+        <div class="p-5 space-y-4 divide-y divide-slate-100">
+          <div class="flex items-center justify-between pt-2 first:pt-0">
+            <div class="pr-4">
+              <label for="email-support" class="text-xs font-bold text-slate-800 block cursor-pointer">Ticket Assignment & Escalations (Email)</label>
+              <p class="text-[11px] text-slate-500 mt-0.5">Send immediate email notifications when priority tickets are opened or assigned.</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer shrink-0">
+              <input type="checkbox" id="email-support" class="sr-only peer notif-toggle">
+              <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600 shadow-inner"></div>
+            </label>
+          </div>
+
+          <div class="flex items-center justify-between pt-4">
+            <div class="pr-4">
+              <label for="app-support" class="text-xs font-bold text-slate-800 block cursor-pointer">Real-Time Ticket Alerts (In-App)</label>
+              <p class="text-[11px] text-slate-500 mt-0.5">Pop up real-time badges when customer support tickets receive new replies.</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer shrink-0">
+              <input type="checkbox" id="app-support" class="sr-only peer notif-toggle">
+              <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600 shadow-inner"></div>
+            </label>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- 6. Finance & Invoicing (Permission Guarded) -->
+      {% if request.user.profile.has_access_finance or request.user.profile.has_access_finance_invoices or request.user.profile.has_access_finance_dashboard %}
+      <div class="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden transition-all hover:border-slate-300">
+        <div class="p-5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-teal-50 text-teal-600 border border-teal-100 flex items-center justify-center shrink-0 shadow-2xs">
+              <i data-lucide="wallet" class="w-4.5 h-4.5"></i>
+            </div>
+            <div>
+              <h2 class="text-sm font-bold text-slate-900">Finance & Invoicing</h2>
+              <p class="text-xs text-slate-500">Invoice payments, overdue accounts, and partner payouts.</p>
+            </div>
+          </div>
+          <span class="text-[11px] font-semibold text-teal-600 bg-teal-50/80 px-2.5 py-0.5 rounded-full border border-teal-100 hidden sm:inline-block">Finance</span>
+        </div>
+
+        <div class="p-5 space-y-4 divide-y divide-slate-100">
+          <div class="flex items-center justify-between pt-2 first:pt-0">
+            <div class="pr-4">
+              <label for="email-finance-invoices" class="text-xs font-bold text-slate-800 block cursor-pointer">Payment Receipts & Overdue Invoices (Email)</label>
+              <p class="text-[11px] text-slate-500 mt-0.5">Email notifications when clients settle invoices or when invoices pass due date.</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer shrink-0">
+              <input type="checkbox" id="email-finance-invoices" class="sr-only peer notif-toggle">
+              <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600 shadow-inner"></div>
+            </label>
+          </div>
+
+          <div class="flex items-center justify-between pt-4">
+            <div class="pr-4">
+              <label for="app-finance-payouts" class="text-xs font-bold text-slate-800 block cursor-pointer">Payout & Expense Approvals (In-App)</label>
+              <p class="text-[11px] text-slate-500 mt-0.5">Live dashboard alerts for partner commission payouts and pending expense approvals.</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer shrink-0">
+              <input type="checkbox" id="app-finance-payouts" class="sr-only peer notif-toggle">
+              <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600 shadow-inner"></div>
+            </label>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- 7. HR & Staff Management (Permission Guarded) -->
+      {% if request.user.profile.has_access_hr or request.user.profile.has_access_staff or request.user.profile.has_access_hr_dashboard %}
+      <div class="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden transition-all hover:border-slate-300">
+        <div class="p-5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 border border-purple-100 flex items-center justify-center shrink-0 shadow-2xs">
+              <i data-lucide="user-check" class="w-4.5 h-4.5"></i>
+            </div>
+            <div>
+              <h2 class="text-sm font-bold text-slate-900">HR, Staff & Attendance</h2>
+              <p class="text-xs text-slate-500">Employee leaves, attendance status, and payroll notifications.</p>
+            </div>
+          </div>
+          <span class="text-[11px] font-semibold text-purple-600 bg-purple-50/80 px-2.5 py-0.5 rounded-full border border-purple-100 hidden sm:inline-block">HR</span>
+        </div>
+
+        <div class="p-5 space-y-4 divide-y divide-slate-100">
+          <div class="flex items-center justify-between pt-2 first:pt-0">
+            <div class="pr-4">
+              <label for="email-hr-leaves" class="text-xs font-bold text-slate-800 block cursor-pointer">Leave Requests & Decisions (Email)</label>
+              <p class="text-[11px] text-slate-500 mt-0.5">Email notifications for submitted staff leave applications and approval notices.</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer shrink-0">
+              <input type="checkbox" id="email-hr-leaves" class="sr-only peer notif-toggle">
+              <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600 shadow-inner"></div>
+            </label>
+          </div>
+
+          <div class="flex items-center justify-between pt-4">
+            <div class="pr-4">
+              <label for="app-hr-attendance" class="text-xs font-bold text-slate-800 block cursor-pointer">Attendance & Shift Notices (In-App)</label>
+              <p class="text-[11px] text-slate-500 mt-0.5">Daily in-app notifications on attendance check-ins, late flags, and rosters.</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer shrink-0">
+              <input type="checkbox" id="app-hr-attendance" class="sr-only peer notif-toggle">
+              <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600 shadow-inner"></div>
+            </label>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- 8. Agreements & Quotations (Permission Guarded) -->
+      {% if request.user.profile.has_access_agreements or request.user.profile.has_access_quotations %}
+      <div class="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden transition-all hover:border-slate-300">
+        <div class="p-5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-cyan-50 text-cyan-600 border border-cyan-100 flex items-center justify-center shrink-0 shadow-2xs">
+              <i data-lucide="file-check-2" class="w-4.5 h-4.5"></i>
+            </div>
+            <div>
+              <h2 class="text-sm font-bold text-slate-900">Agreements & Quotations</h2>
+              <p class="text-xs text-slate-500">Contract lifecycle, client sign-offs, and proposal status.</p>
+            </div>
+          </div>
+          <span class="text-[11px] font-semibold text-cyan-600 bg-cyan-50/80 px-2.5 py-0.5 rounded-full border border-cyan-100 hidden sm:inline-block">Legal</span>
+        </div>
+
+        <div class="p-5 space-y-4 divide-y divide-slate-100">
+          <div class="flex items-center justify-between pt-2 first:pt-0">
+            <div class="pr-4">
+              <label for="email-agreements-expiring" class="text-xs font-bold text-slate-800 block cursor-pointer">Contract Expirations (Email)</label>
+              <p class="text-[11px] text-slate-500 mt-0.5">Automated warning emails 30 days and 15 days prior to agreement expiry.</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer shrink-0">
+              <input type="checkbox" id="email-agreements-expiring" class="sr-only peer notif-toggle">
+              <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600 shadow-inner"></div>
+            </label>
+          </div>
+
+          <div class="flex items-center justify-between pt-4">
+            <div class="pr-4">
+              <label for="app-quotations-status" class="text-xs font-bold text-slate-800 block cursor-pointer">Quotation Approvals (In-App)</label>
+              <p class="text-[11px] text-slate-500 mt-0.5">Live notification when a customer views or accepts a generated price quotation.</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer shrink-0">
+              <input type="checkbox" id="app-quotations-status" class="sr-only peer notif-toggle">
+              <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600 shadow-inner"></div>
+            </label>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- 9. Marketing Campaigns (Permission Guarded) -->
+      {% if request.user.profile.has_access_campaigns or request.user.profile.has_access_campaign %}
+      <div class="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden transition-all hover:border-slate-300">
+        <div class="p-5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-orange-50 text-orange-600 border border-orange-100 flex items-center justify-center shrink-0 shadow-2xs">
+              <i data-lucide="megaphone" class="w-4.5 h-4.5"></i>
+            </div>
+            <div>
+              <h2 class="text-sm font-bold text-slate-900">Marketing & Campaigns</h2>
+              <p class="text-xs text-slate-500">Ad campaign milestones, lead generation surges, and status alerts.</p>
+            </div>
+          </div>
+          <span class="text-[11px] font-semibold text-orange-600 bg-orange-50/80 px-2.5 py-0.5 rounded-full border border-orange-100 hidden sm:inline-block">Marketing</span>
+        </div>
+
+        <div class="p-5 space-y-4 divide-y divide-slate-100">
+          <div class="flex items-center justify-between pt-2 first:pt-0">
+            <div class="pr-4">
+              <label for="email-campaigns-status" class="text-xs font-bold text-slate-800 block cursor-pointer">Campaign Milestones (Email)</label>
+              <p class="text-[11px] text-slate-500 mt-0.5">Email updates on campaign launch schedules and periodic target performance.</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer shrink-0">
+              <input type="checkbox" id="email-campaigns-status" class="sr-only peer notif-toggle">
+              <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600 shadow-inner"></div>
+            </label>
+          </div>
+
+          <div class="flex items-center justify-between pt-4">
+            <div class="pr-4">
+              <label for="app-campaigns-metrics" class="text-xs font-bold text-slate-800 block cursor-pointer">Performance & Budget Alerts (In-App)</label>
+              <p class="text-[11px] text-slate-500 mt-0.5">In-app warnings when active campaigns reach 90% budget utilization.</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer shrink-0">
+              <input type="checkbox" id="app-campaigns-metrics" class="sr-only peer notif-toggle">
+              <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600 shadow-inner"></div>
+            </label>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- 10. Content Tracker / CMS (Permission Guarded) -->
+      {% if request.user.profile.has_access_content_tracker or request.user.profile.has_access_cms %}
+      <div class="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden transition-all hover:border-slate-300">
+        <div class="p-5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-violet-50 text-violet-600 border border-violet-100 flex items-center justify-center shrink-0 shadow-2xs">
+              <i data-lucide="layout" class="w-4.5 h-4.5"></i>
+            </div>
+            <div>
+              <h2 class="text-sm font-bold text-slate-900">Content Tracker & CMS</h2>
+              <p class="text-xs text-slate-500">Publishing deadlines, editorial review workflows, and approval flags.</p>
+            </div>
+          </div>
+          <span class="text-[11px] font-semibold text-violet-600 bg-violet-50/80 px-2.5 py-0.5 rounded-full border border-violet-100 hidden sm:inline-block">Editorial</span>
+        </div>
+
+        <div class="p-5 space-y-4 divide-y divide-slate-100">
+          <div class="flex items-center justify-between pt-2 first:pt-0">
+            <div class="pr-4">
+              <label for="email-content-deadlines" class="text-xs font-bold text-slate-800 block cursor-pointer">Editorial Deadlines (Email)</label>
+              <p class="text-[11px] text-slate-500 mt-0.5">Email reminders for scheduled articles, video deliverables, and publishing deadlines.</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer shrink-0">
+              <input type="checkbox" id="email-content-deadlines" class="sr-only peer notif-toggle">
+              <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600 shadow-inner"></div>
+            </label>
+          </div>
+
+          <div class="flex items-center justify-between pt-4">
+            <div class="pr-4">
+              <label for="app-content-approvals" class="text-xs font-bold text-slate-800 block cursor-pointer">Content Approval Alerts (In-App)</label>
+              <p class="text-[11px] text-slate-500 mt-0.5">Real-time alerts when content pieces are submitted for review or approved.</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer shrink-0">
+              <input type="checkbox" id="app-content-approvals" class="sr-only peer notif-toggle">
+              <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600 shadow-inner"></div>
+            </label>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- 11. System & Security Alerts (Universal) -->
+      <div class="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden transition-all hover:border-slate-300">
+        <div class="p-5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-slate-100 text-slate-700 border border-slate-200 flex items-center justify-center shrink-0 shadow-2xs">
+              <i data-lucide="bell" class="w-4.5 h-4.5"></i>
+            </div>
+            <div>
+              <h2 class="text-sm font-bold text-slate-900">System & Security Alerts</h2>
+              <p class="text-xs text-slate-500">Critical platform security, login alerts, and workspace broadcasts.</p>
+            </div>
+          </div>
+          <span class="text-[11px] font-semibold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200 hidden sm:inline-block">System</span>
+        </div>
+
+        <div class="p-5 space-y-4 divide-y divide-slate-100">
+          <div class="flex items-center justify-between pt-2 first:pt-0">
+            <div class="pr-4">
+              <label for="email-system" class="text-xs font-bold text-slate-800 block cursor-pointer">Security & Login Alerts (Email)</label>
+              <p class="text-[11px] text-slate-500 mt-0.5">Send urgent email notices for new device logins, password resets, and security events.</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer shrink-0">
+              <input type="checkbox" id="email-system" class="sr-only peer notif-toggle">
+              <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600 shadow-inner"></div>
+            </label>
+          </div>
+
+          <div class="flex items-center justify-between pt-4">
+            <div class="pr-4">
+              <label for="app-system" class="text-xs font-bold text-slate-800 block cursor-pointer">System Center Broadcasts (In-App)</label>
+              <p class="text-[11px] text-slate-500 mt-0.5">Display system-wide notifications and maintenance reminders in your notification tray.</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer shrink-0">
+              <input type="checkbox" id="app-system" class="sr-only peer notif-toggle">
+              <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600 shadow-inner"></div>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Footer -->
+      <div class="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 sticky bottom-4 z-10 backdrop-blur-md bg-white/95">
+        <div class="text-xs text-slate-500 flex items-center gap-2">
+          <i data-lucide="shield-check" class="w-4 h-4 text-emerald-600"></i>
+          <span>Preferences are securely saved to your local profile.</span>
+        </div>
+
+        <div class="flex items-center gap-2.5 self-end sm:self-auto">
+          <a href="{% url 'settings_dashboard' %}" class="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-semibold hover:bg-slate-50 transition-all">
+            Back to Settings
+          </a>
+          <button type="submit" id="saveBtn" class="px-5 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-semibold shadow-xs hover:shadow transition-all flex items-center gap-2 active:scale-95">
+            <i data-lucide="check" class="w-3.5 h-3.5"></i>
+            <span>Save Preferences</span>
+          </button>
+        </div>
+      </div>
+
+    </form>
   </div>
-</main>
+</div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-  // Load settings on load
-  document.addEventListener('DOMContentLoaded', function() {
-      let settings = {};
-      try {
-          settings = JSON.parse(localStorage.getItem('notification_preferences')) || {};
-      } catch(e){}
-      
-      const fields = ['email-meetings', 'app-meetings', 'email-projects', 'app-projects', 'email-support', 'app-support', 'email-activities', 'app-activities', 'email-system', 'app-system'];
-      fields.forEach(f => {
-          const el = document.getElementById(f);
-          if (el) {
-              el.checked = settings[f] !== false; // Default to true if not set
-          }
-      });
+  // Key for local storage
+  const STORAGE_KEY = 'xeno_user_notification_preferences';
+
+  // Load preferences from localStorage on DOM load
+  document.addEventListener('DOMContentLoaded', () => {
+    if (window.lucide) lucide.createIcons();
+
+    let settings = {};
+    try {
+      settings = JSON.parse(localStorage.getItem(STORAGE_KEY)) || JSON.parse(localStorage.getItem('notification_preferences')) || {};
+    } catch(e) {
+      settings = {};
+    }
+
+    // Iterate through all toggles rendered on the page
+    document.querySelectorAll('#notif-settings-form input.notif-toggle').forEach(toggle => {
+      if (settings[toggle.id] !== undefined) {
+        toggle.checked = settings[toggle.id] === true;
+      } else {
+        // Default to enabled
+        toggle.checked = true;
+      }
+    });
   });
 
-  // Save settings on submit
+  // Quick action: Enable or disable all visible toggles
+  function setAllToggles(enable) {
+    document.querySelectorAll('#notif-settings-form input.notif-toggle').forEach(toggle => {
+      toggle.checked = enable;
+    });
+    if (typeof showToast === 'function') {
+      showToast(enable ? 'All visible notifications enabled' : 'All visible notifications muted', 'info');
+    }
+  }
+
+  // Save settings handler
   function saveNotifSettings(event) {
-      event.preventDefault();
-      const settings = {};
-      const fields = ['email-meetings', 'app-meetings', 'email-projects', 'app-projects', 'email-support', 'app-support', 'email-activities', 'app-activities', 'email-system', 'app-system'];
-      fields.forEach(f => {
-          const el = document.getElementById(f);
-          if (el) {
-              settings[f] = el.checked;
-          }
-      });
-      localStorage.setItem('notification_preferences', JSON.stringify(settings));
-      if (typeof showToast === 'function') {
-          showToast('Notification preferences saved successfully.', 'success');
-      }
+    event.preventDefault();
+    const settings = {};
+
+    document.querySelectorAll('#notif-settings-form input.notif-toggle').forEach(toggle => {
+      settings[toggle.id] = toggle.checked;
+    });
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+    localStorage.setItem('notification_preferences', JSON.stringify(settings));
+
+    // Provide visual confirmation
+    const btn = document.getElementById('saveBtn');
+    if (btn) {
+      const origHtml = btn.innerHTML;
+      btn.innerHTML = '<i data-lucide="check" class="w-3.5 h-3.5"></i> Saved!';
+      btn.classList.remove('bg-brand-600', 'hover:bg-brand-700');
+      btn.classList.add('bg-emerald-600', 'hover:bg-emerald-700');
+      if (window.lucide) lucide.createIcons();
+
+      setTimeout(() => {
+        btn.innerHTML = origHtml;
+        btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-700');
+        btn.classList.add('bg-brand-600', 'hover:bg-brand-700');
+        if (window.lucide) lucide.createIcons();
+      }, 2000);
+    }
+
+    if (typeof showToast === 'function') {
+      showToast('Notification preferences successfully saved!', 'success');
+    }
   }
 </script>
-<style>
-  /* Custom toggle switches using Tailwind margins */
-  .checked\:before\:left-4\.5:checked::before {
-      left: 1.125rem;
-  }
-</style>
 {% endblock %}
