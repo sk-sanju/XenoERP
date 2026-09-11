@@ -866,7 +866,7 @@
                     {% for act in task_activities %}
                     <div class="flex items-center gap-3 p-2.5 rounded-xl hover:bg-slate-50 border border-slate-100/60 transition-colors">
                         <div class="w-2 h-2 rounded-full bg-blue-600 flex-shrink-0"></div>
-                        <span class="font-bold text-slate-800">{{ act.user.get_full_name|default:act.user.username|default:"System User" }}</span>
+                        <span class="font-bold text-slate-800">{{ act.lead.company_name|default:act.lead.name|default:"Workspace Task" }}</span>
                         <span class="text-slate-600">{{ act.description }}</span>
                         <span class="text-slate-400 text-[11px] ml-auto font-mono">{{ act.timestamp|date:"M d, Y • h:i A" }}</span>
                     </div>
