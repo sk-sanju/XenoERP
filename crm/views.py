@@ -5803,10 +5803,10 @@ def finance_dashboard_view(request):
     upi_id = doc_settings.upi_id if doc_settings and doc_settings.upi_id else ''
     opening_balance = float(getattr(doc_settings, 'opening_balance', 0.0) or 0.0)
 
-    # 4. Current Bank Balance Calculation (Base balance set to 10,886.48; updated by future income and expense changes)
-    base_balance = 10886.48
-    base_revenue = 122750.00
-    base_outflow = 93147.07
+    # 4. Current Bank Balance Calculation (Base balance set to 8,404.71; updated by future income and expense changes)
+    base_balance = 8404.71
+    base_revenue = 156750.00
+    base_outflow = 119741.94
     current_bank_balance = opening_balance + base_balance + (total_revenue - base_revenue) - (total_outflow - base_outflow)
 
     # 5. Payment Methods / Accounts Summary Breakdown
@@ -6032,7 +6032,11 @@ def finance_income_view(request):
                         # Get Payment Method
                         pm_obj = None
                         if method_str:
+                            if method_str.strip().lower() in ['google pay', 'gpay', 'google_pay', 'g pay', 'googlepay']:
+                                method_str = 'UPI'
                             pm_obj = FinancePaymentMethod.objects.filter(organization=request.user.profile.organization, name__iexact=method_str).first()
+                            if not pm_obj and method_str.upper() == 'UPI':
+                                pm_obj = FinancePaymentMethod.objects.filter(organization=request.user.profile.organization, name__icontains='UPI').first()
                             
                         Income.objects.create(
                             organization=request.user.profile.organization,
@@ -6215,7 +6219,11 @@ def finance_expenses_view(request):
                             
                         pm_obj = None
                         if method_str:
+                            if method_str.strip().lower() in ['google pay', 'gpay', 'google_pay', 'g pay', 'googlepay']:
+                                method_str = 'UPI'
                             pm_obj = FinancePaymentMethod.objects.filter(organization=request.user.profile.organization, name__iexact=method_str).first()
+                            if not pm_obj and method_str.upper() == 'UPI':
+                                pm_obj = FinancePaymentMethod.objects.filter(organization=request.user.profile.organization, name__icontains='UPI').first()
                             
                         Expense.objects.create(
                             organization=request.user.profile.organization,
