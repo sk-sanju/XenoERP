@@ -1253,6 +1253,9 @@ def login_view(request):
             if not remember_me:
                 request.session.set_expiry(0)
                 
+            next_url = request.POST.get('next') or request.GET.get('next')
+            if next_url and next_url.startswith('/') and not next_url.startswith('//'):
+                return redirect(next_url)
             return redirect('dashboard')
         else:
             messages.error(request, "Invalid username or password.")
