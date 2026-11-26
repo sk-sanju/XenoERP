@@ -625,16 +625,42 @@ def role_permissions_view(request):
             perms = data.get('permissions')
             
             if target_type == 'role' and target_id:
-                role_obj = StaffRole.objects.get(organization=org, name=target_id)
-                role_obj.permissions_json = json.dumps(perms)
+                role_obj = StaffRole.objects.filter(organization=org, name__iexact=str(target_id).strip()).first()
+                if not role_obj and str(target_id).isdigit():
+                    role_obj = StaffRole.objects.filter(organization=org, id=int(target_id)).first()
+                if not role_obj:
+                    return JsonResponse({'success': False, 'error': f"Role '{target_id}' not found."})
+
+                # Store normalized permissions dictionary
+                normalized_perms = dict(perms) if isinstance(perms, dict) else {}
+                for k, v in list(normalized_perms.items()):
+                    if '_' in k:
+                        # Extract suffix after first prefix (e.g. "sales executive_leads" -> "leads")
+                        parts = k.split('_', 1)
+                        if len(parts) == 2 and parts[1] not in normalized_perms:
+                            normalized_perms[parts[1]] = v
+
+                role_obj.permissions_json = json.dumps(normalized_perms)
                 role_obj.save()
-                return JsonResponse({'success': True, 'message': f"Permissions for role '{target_id}' updated successfully."})
+                return JsonResponse({'success': True, 'message': f"Permissions for role '{role_obj.name}' updated successfully."})
             
             elif target_type == 'staff' and target_id:
-                staff_obj = UserProfile.objects.get(organization=org, id=target_id)
-                staff_obj.custom_permissions_json = json.dumps(perms)
+                staff_obj = UserProfile.objects.filter(organization=org, id=target_id).first()
+                if not staff_obj and str(target_id).isdigit():
+                    staff_obj = UserProfile.objects.filter(organization=org, user__id=int(target_id)).first()
+                if not staff_obj:
+                    return JsonResponse({'success': False, 'error': f"Staff member '{target_id}' not found."})
+
+                normalized_perms = dict(perms) if isinstance(perms, dict) else {}
+                for k, v in list(normalized_perms.items()):
+                    if '_' in k:
+                        parts = k.split('_', 1)
+                        if len(parts) == 2 and parts[1] not in normalized_perms:
+                            normalized_perms[parts[1]] = v
+
+                staff_obj.custom_permissions_json = json.dumps(normalized_perms)
                 staff_obj.save()
-                return JsonResponse({'success': True, 'message': "Permissions for staff updated successfully."})
+                return JsonResponse({'success': True, 'message': f"Permissions for '{staff_obj.user.username}' updated successfully."})
 
             return JsonResponse({'success': False, 'error': 'Missing type or id.'})
         except Exception as e:

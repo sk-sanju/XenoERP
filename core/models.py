@@ -143,6 +143,12 @@ class UserProfile(models.Model):
             'manager',
             'staff',
             'user',
+            'marketing executive officer',
+            'chief executive editor',
+            'chief technical officer',
+            'editor',
+            'content creater',
+            'digital marketer',
         ])
 
         pages_to_check = [page_name]
@@ -151,29 +157,29 @@ class UserProfile(models.Model):
             pages_to_check.append(alias)
 
         for p in pages_to_check:
-            # Build search keys based on action
+            # 1. Exact candidate keys (clean unprefixed first, then prefixed)
             search_keys = []
             if action == 'view':
+                search_keys.append(p)
+                search_keys.append(f"{p}_view")
                 for prefix in candidate_prefixes:
                     search_keys.append(f"{prefix}_{p}")
                     search_keys.append(f"{prefix}-{p}")
                     search_keys.append(f"{prefix}_{p}_view")
-                search_keys.append(p)
-                search_keys.append(f"{p}_view")
             elif action == 'edit':
+                search_keys.append(f"{p}_edit")
+                search_keys.append(f"{p}-edit")
+                search_keys.append(f"{p}_create")
                 for prefix in candidate_prefixes:
                     search_keys.append(f"{prefix}_{p}_edit")
                     search_keys.append(f"{prefix}-{p}-edit")
                     search_keys.append(f"{prefix}_{p}_create")
-                search_keys.append(f"{p}_edit")
-                search_keys.append(f"{p}-edit")
-                search_keys.append(f"{p}_create")
             elif action == 'delete':
+                search_keys.append(f"{p}_delete")
+                search_keys.append(f"{p}-delete")
                 for prefix in candidate_prefixes:
                     search_keys.append(f"{prefix}_{p}_delete")
                     search_keys.append(f"{prefix}-{p}-delete")
-                search_keys.append(f"{p}_delete")
-                search_keys.append(f"{p}-delete")
 
             for k in search_keys:
                 if k in perms_dict:
@@ -183,10 +189,10 @@ class UserProfile(models.Model):
                     elif val is False or val == False or str(val).lower() == 'false':
                         return False
 
-            # Check suffix matching
+            # 2. Suffix matching for any arbitrary prefix (e.g. "custom_role_leads")
             suffix = f"_{p}" if action == 'view' else f"_{p}_{action}"
             for k, val in perms_dict.items():
-                if k.endswith(suffix):
+                if k == p or k.endswith(suffix):
                     if val is True or val == True or str(val).lower() == 'true':
                         return True
                     elif val is False or val == False or str(val).lower() == 'false':
@@ -202,48 +208,52 @@ class UserProfile(models.Model):
             pass
 
         role_lower = (self.role or '').lower().strip()
-        if 'admin' in role_lower:
-            return True
 
         # 1. Check Staff-specific overrides first
-        try:
-            custom_perms = json.loads(self.custom_permissions_json or '{}')
-            res = self._lookup_perm_dict(custom_perms, page_name, action='view')
-            if res is not None:
-                return res
-        except Exception:
-            pass
+        if self.custom_permissions_json:
+            try:
+                custom_perms = json.loads(self.custom_permissions_json)
+                res = self._lookup_perm_dict(custom_perms, page_name, action='view')
+                if res is not None:
+                    return res
+            except Exception:
+                pass
 
-        # 2. Check Role-level permissions
-        try:
-            role_obj = StaffRole.objects.get(organization=self.organization, name=self.role)
-            perms = json.loads(role_obj.permissions_json or '{}')
-            res = self._lookup_perm_dict(perms, page_name, action='view')
-            if res is not None:
-                return res
-        except Exception:
-            pass
+        # 2. Check Role-level permissions second
+        if self.role and self.organization:
+            try:
+                role_obj = StaffRole.objects.filter(organization=self.organization, name__iexact=self.role).first()
+                if role_obj and role_obj.permissions_json:
+                    perms = json.loads(role_obj.permissions_json)
+                    res = self._lookup_perm_dict(perms, page_name, action='view')
+                    if res is not None:
+                        return res
+            except Exception:
+                pass
 
         # 3. Check Parent module fallback in custom_perms or perms if this is a subpage
         main_module = page_name.split('_')[0] if '_' in page_name else None
         if main_module and main_module != page_name:
-            try:
-                custom_perms = json.loads(self.custom_permissions_json or '{}')
-                res = self._lookup_perm_dict(custom_perms, main_module, action='view')
-                if res is not None:
-                    return res
-            except Exception:
-                pass
-            try:
-                role_obj = StaffRole.objects.get(organization=self.organization, name=self.role)
-                perms = json.loads(role_obj.permissions_json or '{}')
-                res = self._lookup_perm_dict(perms, main_module, action='view')
-                if res is not None:
-                    return res
-            except Exception:
-                pass
+            if self.custom_permissions_json:
+                try:
+                    custom_perms = json.loads(self.custom_permissions_json)
+                    res = self._lookup_perm_dict(custom_perms, main_module, action='view')
+                    if res is not None:
+                        return res
+                except Exception:
+                    pass
+            if self.role and self.organization:
+                try:
+                    role_obj = StaffRole.objects.filter(organization=self.organization, name__iexact=self.role).first()
+                    if role_obj and role_obj.permissions_json:
+                        perms = json.loads(role_obj.permissions_json)
+                        res = self._lookup_perm_dict(perms, main_module, action='view')
+                        if res is not None:
+                            return res
+                except Exception:
+                    pass
 
-        # 4. Defaults fallback logic
+        # 4. Defaults fallback logic (only if no explicit permissions configured)
         if 'admin' in role_lower:
             return True
         elif 'manager' in role_lower:
@@ -265,28 +275,31 @@ class UserProfile(models.Model):
         except Exception:
             pass
 
+        # 1. Custom Staff Override
+        if self.custom_permissions_json:
+            try:
+                custom_perms = json.loads(self.custom_permissions_json)
+                res = self._lookup_perm_dict(custom_perms, page_name, action='edit')
+                if res is not None:
+                    return res
+            except Exception:
+                pass
+
+        # 2. Role-level permissions
+        if self.role and self.organization:
+            try:
+                role_obj = StaffRole.objects.filter(organization=self.organization, name__iexact=self.role).first()
+                if role_obj and role_obj.permissions_json:
+                    perms = json.loads(role_obj.permissions_json)
+                    res = self._lookup_perm_dict(perms, page_name, action='edit')
+                    if res is not None:
+                        return res
+            except Exception:
+                pass
+
         role_lower = (self.role or '').lower().strip()
         if 'admin' in role_lower:
             return True
-
-        # 1. Custom Staff Override
-        try:
-            custom_perms = json.loads(self.custom_permissions_json or '{}')
-            res = self._lookup_perm_dict(custom_perms, page_name, action='edit')
-            if res is not None:
-                return res
-        except Exception:
-            pass
-
-        # 2. Role-level permissions
-        try:
-            role_obj = StaffRole.objects.get(organization=self.organization, name=self.role)
-            perms = json.loads(role_obj.permissions_json or '{}')
-            res = self._lookup_perm_dict(perms, page_name, action='edit')
-            if res is not None:
-                return res
-        except Exception:
-            pass
 
         return self.check_page_permission(page_name)
 
@@ -297,28 +310,31 @@ class UserProfile(models.Model):
         except Exception:
             pass
 
+        # 1. Custom Staff Override
+        if self.custom_permissions_json:
+            try:
+                custom_perms = json.loads(self.custom_permissions_json)
+                res = self._lookup_perm_dict(custom_perms, page_name, action='delete')
+                if res is not None:
+                    return res
+            except Exception:
+                pass
+
+        # 2. Role-level permissions
+        if self.role and self.organization:
+            try:
+                role_obj = StaffRole.objects.filter(organization=self.organization, name__iexact=self.role).first()
+                if role_obj and role_obj.permissions_json:
+                    perms = json.loads(role_obj.permissions_json)
+                    res = self._lookup_perm_dict(perms, page_name, action='delete')
+                    if res is not None:
+                        return res
+            except Exception:
+                pass
+
         role_lower = (self.role or '').lower().strip()
         if 'admin' in role_lower:
             return True
-
-        # 1. Custom Staff Override
-        try:
-            custom_perms = json.loads(self.custom_permissions_json or '{}')
-            res = self._lookup_perm_dict(custom_perms, page_name, action='delete')
-            if res is not None:
-                return res
-        except Exception:
-            pass
-
-        # 2. Role-level permissions
-        try:
-            role_obj = StaffRole.objects.get(organization=self.organization, name=self.role)
-            perms = json.loads(role_obj.permissions_json or '{}')
-            res = self._lookup_perm_dict(perms, page_name, action='delete')
-            if res is not None:
-                return res
-        except Exception:
-            pass
 
         return self.check_page_permission(page_name)
 
