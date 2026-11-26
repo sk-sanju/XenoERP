@@ -128,15 +128,17 @@ def delete_finance_category(request, cat_id):
 
 @login_required
 def finance_dashboard_view(request):
-    org = request.user.profile.organization
+    org = getattr(getattr(request.user, 'profile', None), 'organization', None)
+    if not org:
+        org = Organization.objects.filter(name__icontains='Xenotrix').first() or Organization.objects.first()
     today = timezone.now().date()
     
     # 1. Total Income & Inflow (Manual Income entries strictly for bank balance/inflow)
-    manual_inc_total = float(Income.objects.filter(organization=org).aggregate(total=Sum('amount'))['total'] or 0)
+    manual_inc_total = float(Income.objects.filter(organization=org, is_deleted=False).aggregate(total=Sum('amount'))['total'] or 0)
     total_revenue = manual_inc_total
 
     # 2. Total Outflows (Expenses + Paid Partner Payouts)
-    total_expenses = float(Expense.objects.filter(organization=org).aggregate(total=Sum('amount'))['total'] or 0)
+    total_expenses = float(Expense.objects.filter(organization=org, is_deleted=False).aggregate(total=Sum('amount'))['total'] or 0)
     total_payouts = float(PartnerPayout.objects.filter(organization=org, status__name='Paid').aggregate(total=Sum('amount'))['total'] or 0)
     total_outflow = total_expenses + total_payouts
 
@@ -159,8 +161,8 @@ def finance_dashboard_view(request):
     payment_methods = FinancePaymentMethod.objects.filter(organization=org)
     payment_methods_summary = []
     for pm in payment_methods:
-        pm_inflow = float(Income.objects.filter(organization=org, payment_method=pm).aggregate(total=Sum('amount'))['total'] or 0)
-        pm_expense = float(Expense.objects.filter(organization=org, payment_method=pm).aggregate(total=Sum('amount'))['total'] or 0)
+        pm_inflow = float(Income.objects.filter(organization=org, payment_method=pm, is_deleted=False).aggregate(total=Sum('amount'))['total'] or 0)
+        pm_expense = float(Expense.objects.filter(organization=org, payment_method=pm, is_deleted=False).aggregate(total=Sum('amount'))['total'] or 0)
         pm_payout = float(PartnerPayout.objects.filter(organization=org, payment_method=pm, status__name='Paid').aggregate(total=Sum('amount'))['total'] or 0)
         pm_outflow = pm_expense + pm_payout
         pm_balance = pm_inflow - pm_outflow
@@ -172,20 +174,20 @@ def finance_dashboard_view(request):
         })
 
     # 6. Monthly & Yearly Revenue (Income)
-    revenue_this_month = float(Income.objects.filter(organization=org, date__year=today.year, date__month=today.month).aggregate(total=Sum('amount'))['total'] or 0)
-    revenue_this_year = float(Income.objects.filter(organization=org, date__year=today.year).aggregate(total=Sum('amount'))['total'] or 0)
-    expenses_this_month = float(Expense.objects.filter(organization=org, date__year=today.year, date__month=today.month).aggregate(total=Sum('amount'))['total'] or 0)
+    revenue_this_month = float(Income.objects.filter(organization=org, date__year=today.year, date__month=today.month, is_deleted=False).aggregate(total=Sum('amount'))['total'] or 0)
+    revenue_this_year = float(Income.objects.filter(organization=org, date__year=today.year, is_deleted=False).aggregate(total=Sum('amount'))['total'] or 0)
+    expenses_this_month = float(Expense.objects.filter(organization=org, date__year=today.year, date__month=today.month, is_deleted=False).aggregate(total=Sum('amount'))['total'] or 0)
 
     # 7. MoM Growth Calculations
     last_month_date = today.replace(day=1) - timedelta(days=1)
-    revenue_last_month = float(Income.objects.filter(organization=org, date__year=last_month_date.year, date__month=last_month_date.month).aggregate(total=Sum('amount'))['total'] or 0)
+    revenue_last_month = float(Income.objects.filter(organization=org, date__year=last_month_date.year, date__month=last_month_date.month, is_deleted=False).aggregate(total=Sum('amount'))['total'] or 0)
 
     if revenue_last_month > 0:
         revenue_mom = ((revenue_this_month - revenue_last_month) / revenue_last_month) * 100
     else:
         revenue_mom = 100 if revenue_this_month > 0 else 0
 
-    expenses_last_month = float(Expense.objects.filter(organization=org, date__year=last_month_date.year, date__month=last_month_date.month).aggregate(total=Sum('amount'))['total'] or 0)
+    expenses_last_month = float(Expense.objects.filter(organization=org, date__year=last_month_date.year, date__month=last_month_date.month, is_deleted=False).aggregate(total=Sum('amount'))['total'] or 0)
     if expenses_last_month > 0:
         expenses_mom = ((expenses_this_month - expenses_last_month) / expenses_last_month) * 100
     else:
@@ -213,14 +215,14 @@ def finance_dashboard_view(request):
             target_month += 12
             target_year -= 1
         months_labels.append(f"{calendar.month_abbr[target_month]}")
-        inc = float(Income.objects.filter(organization=org, date__year=target_year, date__month=target_month).aggregate(total=Sum('amount'))['total'] or 0)
-        exp = float(Expense.objects.filter(organization=org, date__year=target_year, date__month=target_month).aggregate(total=Sum('amount'))['total'] or 0)
+        inc = float(Income.objects.filter(organization=org, date__year=target_year, date__month=target_month, is_deleted=False).aggregate(total=Sum('amount'))['total'] or 0)
+        exp = float(Expense.objects.filter(organization=org, date__year=target_year, date__month=target_month, is_deleted=False).aggregate(total=Sum('amount'))['total'] or 0)
         revenue_data.append(inc)
         expense_data.append(exp)
 
     # 11. Top Clients by Revenue (Income)
     client_totals = {}
-    for inc in Income.objects.filter(organization=org):
+    for inc in Income.objects.filter(organization=org, is_deleted=False):
         c_name = inc.client_name or 'Other'
         client_totals[c_name] = client_totals.get(c_name, 0.0) + float(inc.amount)
 
@@ -229,13 +231,13 @@ def finance_dashboard_view(request):
     client_revenue = [c[1] for c in sorted_clients]
 
     # 12. Expense Category Breakdown
-    expense_categories = Expense.objects.filter(organization=org).exclude(category__isnull=True).values('category__name').annotate(total=Sum('amount')).order_by('-total')[:5]
+    expense_categories = Expense.objects.filter(organization=org, is_deleted=False).exclude(category__isnull=True).values('category__name').annotate(total=Sum('amount')).order_by('-total')[:5]
     expense_cat_labels = [c['category__name'] for c in expense_categories]
     expense_cat_data = [float(c['total']) for c in expense_categories]
 
     # 13. Revenue Distribution (Income Projects)
     service_totals = {}
-    for inc in Income.objects.filter(organization=org).exclude(project_name__isnull=True).exclude(project_name=''):
+    for inc in Income.objects.filter(organization=org, is_deleted=False).exclude(project_name__isnull=True).exclude(project_name=''):
         s_name = inc.project_name
         service_totals[s_name] = service_totals.get(s_name, 0.0) + float(inc.amount)
 
@@ -244,7 +246,7 @@ def finance_dashboard_view(request):
     service_revenue = [s[1] for s in sorted_services]
 
     # 14. Expenses by Client by Month (Apr to Aug)
-    top_exp_clients_qs = Expense.objects.filter(organization=org)\
+    top_exp_clients_qs = Expense.objects.filter(organization=org, is_deleted=False)\
         .exclude(cost_center__isnull=True)\
         .exclude(cost_center='')\
         .values('cost_center')\
@@ -264,7 +266,7 @@ def finance_dashboard_view(request):
             target_month += 12
             target_year -= 1
 
-        month_expenses = Expense.objects.filter(organization=org, date__year=target_year, date__month=target_month)
+        month_expenses = Expense.objects.filter(organization=org, date__year=target_year, date__month=target_month, is_deleted=False)
         for exp in month_expenses:
             c_name = exp.cost_center if (exp.cost_center and exp.cost_center in top_exp_client_names) else ('Others' if top_exp_client_names else 'General Expenses')
             if c_name not in client_data_map:
@@ -409,7 +411,7 @@ def finance_income_view(request):
             
         return redirect('finance_income')
 
-    incomes = Income.objects.filter(organization=request.user.profile.organization).select_related('payment_method')
+    incomes = Income.objects.filter(organization=request.user.profile.organization, is_deleted=False).select_related('payment_method', 'lead')
     
     day = request.GET.get('day')
     month = request.GET.get('month')
@@ -436,7 +438,7 @@ def finance_income_view(request):
 @login_required
 def export_incomes_csv(request):
     org = request.user.profile.organization
-    incomes = Income.objects.filter(organization=org).select_related('payment_method')
+    incomes = Income.objects.filter(organization=org, is_deleted=False).select_related('payment_method', 'lead')
 
     day = request.GET.get('day')
     month = request.GET.get('month')
@@ -492,6 +494,13 @@ def finance_add_income_view(request):
                 income.date = datetime.strptime(date_str, '%Y-%m-%d').date()
             if client_name and client_name != "No Client / General":
                 income.client_name = client_name
+                lead_obj = Lead.objects.filter(
+                    organization=org
+                ).filter(
+                    Q(company__iexact=client_name) | Q(name__iexact=client_name)
+                ).first()
+                if lead_obj:
+                    income.lead = lead_obj
             if project_name:
                 income.project_name = project_name
             if amount_str:
@@ -526,32 +535,40 @@ def finance_edit_income(request, income_id):
     income = get_object_or_404(Income, id=income_id, organization=request.user.profile.organization)
     if request.method == 'POST':
         try:
-            date_str = request.POST.get('date')
-            client_name = request.POST.get('client_name')
-            project_name = request.POST.get('project_name')
-            amount_str = request.POST.get('amount')
-            
-            if date_str:
-                income.date = datetime.strptime(date_str, '%Y-%m-%d').date()
-            if client_name:
-                income.client_name = client_name
-            if project_name is not None:
-                income.project_name = project_name
-            if amount_str:
-                clean_amount = amount_str.replace(',', '').replace('₹', '').replace('$', '').strip()
-                income.amount = Decimal(clean_amount)
+            with transaction.atomic():
+                date_str = request.POST.get('date')
+                client_name = request.POST.get('client_name')
+                project_name = request.POST.get('project_name')
+                amount_str = request.POST.get('amount')
                 
-            payment_method_id = request.POST.get('payment_method_id')
-            if payment_method_id:
-                try:
-                    pm = FinancePaymentMethod.objects.get(id=payment_method_id, organization=request.user.profile.organization)
-                    income.payment_method = pm
-                except FinancePaymentMethod.DoesNotExist:
-                    pass
-            elif payment_method_id == "":
-                income.payment_method = None
-                
-            income.save()
+                if date_str:
+                    income.date = datetime.strptime(date_str, '%Y-%m-%d').date()
+                if client_name:
+                    income.client_name = client_name
+                    lead_obj = Lead.objects.filter(
+                        organization=income.organization
+                    ).filter(
+                        Q(company__iexact=client_name) | Q(name__iexact=client_name)
+                    ).first()
+                    if lead_obj:
+                        income.lead = lead_obj
+                if project_name is not None:
+                    income.project_name = project_name
+                if amount_str:
+                    clean_amount = amount_str.replace(',', '').replace('₹', '').replace('$', '').strip()
+                    income.amount = Decimal(clean_amount)
+                    
+                payment_method_id = request.POST.get('payment_method_id')
+                if payment_method_id:
+                    try:
+                        pm = FinancePaymentMethod.objects.get(id=payment_method_id, organization=request.user.profile.organization)
+                        income.payment_method = pm
+                    except FinancePaymentMethod.DoesNotExist:
+                        pass
+                elif payment_method_id == "":
+                    income.payment_method = None
+                    
+                income.save()
             messages.success(request, 'Income record updated successfully.')
         except Exception as e:
             messages.error(request, f'Failed to update income record: {e}')
@@ -640,7 +657,7 @@ def finance_expenses_view(request):
             
         return redirect('finance_expenses')
 
-    expenses = Expense.objects.filter(organization=request.user.profile.organization).select_related('category', 'payment_method')
+    expenses = Expense.objects.filter(organization=request.user.profile.organization, is_deleted=False).select_related('category', 'payment_method', 'lead')
     
     day = request.GET.get('day')
     month = request.GET.get('month')
@@ -671,7 +688,7 @@ def finance_expenses_view(request):
 @login_required
 def export_expenses_csv(request):
     org = request.user.profile.organization
-    expenses = Expense.objects.filter(organization=org).select_related('category', 'payment_method')
+    expenses = Expense.objects.filter(organization=org, is_deleted=False).select_related('category', 'payment_method', 'lead')
 
     day = request.GET.get('day')
     month = request.GET.get('month')
@@ -740,6 +757,13 @@ def finance_add_expense_view(request):
                 expense.description = description
             if cost_center:
                 expense.cost_center = cost_center
+                lead_obj = Lead.objects.filter(
+                    organization=org
+                ).filter(
+                    Q(company__iexact=cost_center) | Q(name__iexact=cost_center)
+                ).first()
+                if lead_obj:
+                    expense.lead = lead_obj
             if payment_method_id:
                 try:
                     pm = FinancePaymentMethod.objects.get(id=payment_method_id, organization=org)
@@ -766,42 +790,50 @@ def finance_edit_expense(request, expense_id):
     expense = get_object_or_404(Expense, id=expense_id, organization=request.user.profile.organization)
     if request.method == 'POST':
         try:
-            date_str = request.POST.get('date')
-            category = request.POST.get('category')
-            description = request.POST.get('description')
-            amount_str = request.POST.get('amount')
-            cost_center = request.POST.get('cost_center')
-            
-            if date_str:
-                expense.date = datetime.strptime(date_str, '%Y-%m-%d').date()
-            category_id = request.POST.get('category_id')
-            if category_id:
-                try:
-                    cat_obj = FinanceExpenseCategory.objects.get(id=category_id, organization=request.user.profile.organization)
-                    expense.category = cat_obj
-                except FinanceExpenseCategory.DoesNotExist:
-                    pass
-            elif category_id == "":
-                expense.category = None
-            if description is not None:
-                expense.description = description
-            if cost_center is not None:
-                expense.cost_center = cost_center
-            if amount_str:
-                clean_amount = amount_str.replace(',', '').replace('₹', '').replace('$', '').strip()
-                expense.amount = Decimal(clean_amount)
+            with transaction.atomic():
+                date_str = request.POST.get('date')
+                category = request.POST.get('category')
+                description = request.POST.get('description')
+                amount_str = request.POST.get('amount')
+                cost_center = request.POST.get('cost_center')
                 
-            payment_method_id = request.POST.get('payment_method_id')
-            if payment_method_id:
-                try:
-                    pm = FinancePaymentMethod.objects.get(id=payment_method_id, organization=request.user.profile.organization)
-                    expense.payment_method = pm
-                except FinancePaymentMethod.DoesNotExist:
-                    pass
-            elif payment_method_id == "":
-                expense.payment_method = None
-                
-            expense.save()
+                if date_str:
+                    expense.date = datetime.strptime(date_str, '%Y-%m-%d').date()
+                category_id = request.POST.get('category_id')
+                if category_id:
+                    try:
+                        cat_obj = FinanceExpenseCategory.objects.get(id=category_id, organization=request.user.profile.organization)
+                        expense.category = cat_obj
+                    except FinanceExpenseCategory.DoesNotExist:
+                        pass
+                elif category_id == "":
+                    expense.category = None
+                if description is not None:
+                    expense.description = description
+                if cost_center is not None:
+                    expense.cost_center = cost_center
+                    lead_obj = Lead.objects.filter(
+                        organization=expense.organization
+                    ).filter(
+                        Q(company__iexact=cost_center) | Q(name__iexact=cost_center)
+                    ).first()
+                    if lead_obj:
+                        expense.lead = lead_obj
+                if amount_str:
+                    clean_amount = amount_str.replace(',', '').replace('₹', '').replace('$', '').strip()
+                    expense.amount = Decimal(clean_amount)
+                    
+                payment_method_id = request.POST.get('payment_method_id')
+                if payment_method_id:
+                    try:
+                        pm = FinancePaymentMethod.objects.get(id=payment_method_id, organization=request.user.profile.organization)
+                        expense.payment_method = pm
+                    except FinancePaymentMethod.DoesNotExist:
+                        pass
+                elif payment_method_id == "":
+                    expense.payment_method = None
+                    
+                expense.save()
             messages.success(request, 'Expense record updated successfully.')
         except Exception as e:
             messages.error(request, f'Failed to update expense record: {e}')
@@ -814,7 +846,9 @@ import calendar
 
 @login_required
 def finance_reports_view(request):
-    org = request.user.profile.organization
+    org = getattr(getattr(request.user, 'profile', None), 'organization', None)
+    if not org:
+        org = Organization.objects.filter(name__icontains='Xenotrix').first() or Organization.objects.first()
     today = timezone.now().date()
     
     months_labels = []
@@ -831,21 +865,21 @@ def finance_reports_view(request):
             
         months_labels.append(f"{calendar.month_abbr[target_month]} {target_year}")
         
-        inc = Income.objects.filter(organization=org, date__year=target_year, date__month=target_month).aggregate(total=Sum('amount'))['total'] or 0
-        exp = Expense.objects.filter(organization=org, date__year=target_year, date__month=target_month).aggregate(total=Sum('amount'))['total'] or 0
+        inc = Income.objects.filter(organization=org, date__year=target_year, date__month=target_month, is_deleted=False).aggregate(total=Sum('amount'))['total'] or 0
+        exp = Expense.objects.filter(organization=org, date__year=target_year, date__month=target_month, is_deleted=False).aggregate(total=Sum('amount'))['total'] or 0
         
         revenue_data.append(float(inc))
         expenses_data.append(float(exp))
         profit_data.append(float(inc - exp))
         
-    client_incomes = Income.objects.filter(organization=org).values('client_name').annotate(total=Sum('amount')).order_by('-total')[:5]
+    client_incomes = Income.objects.filter(organization=org, is_deleted=False).values('client_name').annotate(total=Sum('amount')).order_by('-total')[:5]
     client_labels = [c['client_name'] or 'Unknown' for c in client_incomes]
     client_revenue = [float(c['total']) for c in client_incomes]
     
-    total_inc = Income.objects.filter(organization=org).aggregate(total=Sum('amount'))['total'] or 0
-    total_exp = Expense.objects.filter(organization=org).aggregate(total=Sum('amount'))['total'] or 0
+    total_inc = Income.objects.filter(organization=org, is_deleted=False).aggregate(total=Sum('amount'))['total'] or 0
+    total_exp = Expense.objects.filter(organization=org, is_deleted=False).aggregate(total=Sum('amount'))['total'] or 0
     
-    pm_incomes = Income.objects.filter(organization=org, payment_method__isnull=False).values('payment_method__name').annotate(total=Sum('amount'))
+    pm_incomes = Income.objects.filter(organization=org, payment_method__isnull=False, is_deleted=False).values('payment_method__name').annotate(total=Sum('amount'))
     pay_methods_labels = [pm['payment_method__name'] for pm in pm_incomes]
     pay_methods_data = [float(pm['total']) for pm in pm_incomes]
     
@@ -861,8 +895,8 @@ def finance_reports_view(request):
         cash_flow_labels.append(f"Week {week_num}")
         cash_flow_ranges.append(f"{w_start.strftime('%b %d')} - {w_end.strftime('%b %d')}")
         
-        inc = Income.objects.filter(organization=org, date__gte=w_start, date__lte=w_end).aggregate(total=Sum('amount'))['total'] or 0
-        exp = Expense.objects.filter(organization=org, date__gte=w_start, date__lte=w_end).aggregate(total=Sum('amount'))['total'] or 0
+        inc = Income.objects.filter(organization=org, date__gte=w_start, date__lte=w_end, is_deleted=False).aggregate(total=Sum('amount'))['total'] or 0
+        exp = Expense.objects.filter(organization=org, date__gte=w_start, date__lte=w_end, is_deleted=False).aggregate(total=Sum('amount'))['total'] or 0
         net = float(inc - exp)
         cash_flow_data.append(round(net, 2))
     
@@ -1075,7 +1109,11 @@ def bulk_delete_incomes(request):
                     deleted_by=request.user if request.user.is_authenticated else None,
                     created_at=item.created_at
                 )
-            items.delete()
+            items.update(
+                is_deleted=True,
+                deleted_at=timezone.now(),
+                deleted_by=request.user if request.user.is_authenticated else None
+            )
             return JsonResponse({'success': True, 'message': 'Selected income records backed up and deleted successfully.'})
         return JsonResponse({'success': False, 'error': 'No records selected.'})
     except Exception as e:
@@ -1103,7 +1141,11 @@ def bulk_delete_expenses(request):
                     deleted_by=request.user if request.user.is_authenticated else None,
                     created_at=item.created_at
                 )
-            items.delete()
+            items.update(
+                is_deleted=True,
+                deleted_at=timezone.now(),
+                deleted_by=request.user if request.user.is_authenticated else None
+            )
             return JsonResponse({'success': True, 'message': 'Selected expense records backed up and deleted successfully.'})
         return JsonResponse({'success': False, 'error': 'No records selected.'})
     except Exception as e:
@@ -1115,17 +1157,31 @@ def restore_deleted_income(request, deleted_id):
     try:
         org = request.user.profile.organization
         del_item = get_object_or_404(DeletedIncome, id=deleted_id, organization=org)
-        pm = None
-        if del_item.payment_method_name:
-            pm = FinancePaymentMethod.objects.filter(organization=org, name__iexact=del_item.payment_method_name).first()
-        Income.objects.create(
-            organization=del_item.organization,
-            date=del_item.date,
-            client_name=del_item.client_name,
-            project_name=del_item.project_name,
-            payment_method=pm,
-            amount=del_item.amount,
-        )
+        orig_income = None
+        if del_item.original_id:
+            orig_income = Income.objects.filter(id=del_item.original_id, organization=org).first()
+        if orig_income:
+            orig_income.is_deleted = False
+            orig_income.deleted_at = None
+            orig_income.deleted_by = None
+            orig_income.save(update_fields=['is_deleted', 'deleted_at', 'deleted_by'])
+        else:
+            pm = None
+            if del_item.payment_method_name:
+                pm = FinancePaymentMethod.objects.filter(organization=org, name__iexact=del_item.payment_method_name).first()
+            lead_obj = Lead.objects.filter(organization=org).filter(
+                Q(company__iexact=del_item.client_name) | Q(name__iexact=del_item.client_name)
+            ).first()
+            Income.objects.create(
+                organization=del_item.organization,
+                lead=lead_obj,
+                date=del_item.date,
+                client_name=del_item.client_name,
+                project_name=del_item.project_name,
+                payment_method=pm,
+                amount=del_item.amount,
+                is_deleted=False
+            )
         del_item.delete()
         return JsonResponse({'success': True, 'message': 'Income record restored successfully.'})
     except Exception as e:
@@ -1137,21 +1193,37 @@ def restore_deleted_expense(request, deleted_id):
     try:
         org = request.user.profile.organization
         del_item = get_object_or_404(DeletedExpense, id=deleted_id, organization=org)
-        pm = None
-        if del_item.payment_method_name:
-            pm = FinancePaymentMethod.objects.filter(organization=org, name__iexact=del_item.payment_method_name).first()
-        cat = None
-        if del_item.category_name:
-            cat = FinanceExpenseCategory.objects.filter(organization=org, name__iexact=del_item.category_name).first()
-        Expense.objects.create(
-            organization=del_item.organization,
-            date=del_item.date,
-            category=cat,
-            description=del_item.description,
-            cost_center=del_item.cost_center,
-            payment_method=pm,
-            amount=del_item.amount,
-        )
+        orig_expense = None
+        if del_item.original_id:
+            orig_expense = Expense.objects.filter(id=del_item.original_id, organization=org).first()
+        if orig_expense:
+            orig_expense.is_deleted = False
+            orig_expense.deleted_at = None
+            orig_expense.deleted_by = None
+            orig_expense.save(update_fields=['is_deleted', 'deleted_at', 'deleted_by'])
+        else:
+            pm = None
+            if del_item.payment_method_name:
+                pm = FinancePaymentMethod.objects.filter(organization=org, name__iexact=del_item.payment_method_name).first()
+            cat = None
+            if del_item.category_name:
+                cat = FinanceExpenseCategory.objects.filter(organization=org, name__iexact=del_item.category_name).first()
+            lead_obj = None
+            if del_item.cost_center:
+                lead_obj = Lead.objects.filter(organization=org).filter(
+                    Q(company__iexact=del_item.cost_center) | Q(name__iexact=del_item.cost_center)
+                ).first()
+            Expense.objects.create(
+                organization=del_item.organization,
+                lead=lead_obj,
+                date=del_item.date,
+                category=cat,
+                description=del_item.description,
+                cost_center=del_item.cost_center,
+                payment_method=pm,
+                amount=del_item.amount,
+                is_deleted=False
+            )
         del_item.delete()
         return JsonResponse({'success': True, 'message': 'Expense record restored successfully.'})
     except Exception as e:

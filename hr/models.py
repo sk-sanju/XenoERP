@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils import timezone
 from crm.models import UserProfile, Organization, Department
 
 class EmployeeProfile(models.Model):
@@ -9,6 +10,8 @@ class EmployeeProfile(models.Model):
     date_of_joining = models.DateField(blank=True, null=True)
     salary_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     bank_account_details = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = 'hr_employee_profiles'
@@ -64,6 +67,8 @@ class Attendance(models.Model):
     clock_out = models.TimeField(blank=True, null=True)
     status = models.ForeignKey(AttendanceStatus, on_delete=models.SET_NULL, null=True, blank=True)
     notes = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = 'hr_attendance'
@@ -122,6 +127,8 @@ class Payroll(models.Model):
     net_pay = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Draft')
     processed_on = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = 'hr_payrolls'

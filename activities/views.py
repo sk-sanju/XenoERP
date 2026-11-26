@@ -52,7 +52,7 @@ def add_task(request):
 
             task = Task.objects.create(
                 lead=lead,
-                organization=org if not lead else None,
+                organization=org,
                 title=title,
                 description=desc,
                 start_date=start_date,

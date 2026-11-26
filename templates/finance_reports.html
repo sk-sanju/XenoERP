@@ -174,7 +174,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         label: function(context) {
                             let val = context.parsed.y;
                             let sign = val < 0 ? '-' : '';
-                            return ' ' + context.dataset.label + ': ' + sign + '$' + Math.abs(val).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                            return ' ' + context.dataset.label + ': ' + sign + '₹' + Math.abs(val).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
                         }
                     }
                 }

@@ -102,6 +102,7 @@ class Lead(models.Model):
     followup_wanted_date_time = models.DateTimeField(blank=True, null=True)
     last_activity = models.DateTimeField(auto_now=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
     notes = models.TextField(blank=True, null=True)
     is_client = models.BooleanField(default=False)
 

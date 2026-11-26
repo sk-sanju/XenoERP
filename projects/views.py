@@ -28,7 +28,16 @@ from activities.models import Task, TaskFile, Activity, Event
 def clients_view(request):
     org = request.user.profile.organization
     services_qs = Service.objects.filter(organization=org)
-    leads = Lead.objects.filter(organization=org, is_client=True).order_by('-created_at')
+    leads = Lead.objects.filter(organization=org, is_client=True).prefetch_related('services').order_by('-created_at')
+
+    # Pre-index agreements for O(1) in-memory lookup to avoid N+1 queries
+    agreements_by_lead = {}
+    agreements_by_company = {}
+    for agr in Agreement.objects.filter(organization=org).select_related('service'):
+        if agr.lead_id:
+            agreements_by_lead[agr.lead_id] = agr
+        if agr.company_name:
+            agreements_by_company[agr.company_name.strip().lower()] = agr
 
     clients_list = []
     total_mrr = 0.0
@@ -44,10 +53,8 @@ def clients_view(request):
         paid_val = float(lead.paid_amount or 0.0)
         total_contract_value += total_val
 
-        agreement = Agreement.objects.filter(
-            Q(lead=lead) | (Q(company_name__iexact=company_name) if company_name else Q(id=0)),
-            organization=org
-        ).first()
+        clean_comp = company_name.strip().lower() if company_name else ''
+        agreement = agreements_by_lead.get(lead.id) or (agreements_by_company.get(clean_comp) if clean_comp else None)
 
         monthly_retainer = float(agreement.monthly_fee) if agreement and agreement.monthly_fee else (
             round(total_val / 12, 2) if total_val > 50000 else total_val
@@ -91,9 +98,8 @@ def clients_view(request):
                 services_list.append('Digital Marketing')
 
         linked_tasks = Task.objects.filter(
-            Q(lead=lead) | (Q(title__icontains=company_name) if company_name else Q(id=0))
-        ).filter(
-            Q(organization=org) | Q(organization__isnull=True)
+            Q(lead=lead) | (Q(title__icontains=company_name) if company_name else Q(id=0)),
+            organization=org
         ).order_by('-created_at')
 
         projects_data = []

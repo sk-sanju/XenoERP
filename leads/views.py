@@ -68,7 +68,7 @@ def leads_view(request):
                 SystemNotification.objects.create(user=request.user, message=f"Successfully updated {count} leads to Qualified.", type='success')
         return redirect('leads')
 
-    leads_qs = Lead.objects.filter(organization=org, is_client=False)
+    leads_qs = Lead.objects.filter(organization=org, is_client=False).select_related('owner__user', 'organization').prefetch_related('services')
 
     user_pref_key = f'leads_filter_pref_user_{request.user.id}'
     if user_pref_key in request.session:

@@ -106,8 +106,8 @@ def dashboard_view(request):
     # Base QuerySets across ERP Modules
     leads_all_qs = Lead.objects.filter(organization=org)
     invoices_all_qs = Invoice.objects.filter(organization=org)
-    incomes_all_qs = Income.objects.filter(organization=org)
-    expenses_all_qs = Expense.objects.filter(organization=org)
+    incomes_all_qs = Income.objects.filter(organization=org, is_deleted=False)
+    expenses_all_qs = Expense.objects.filter(organization=org, is_deleted=False)
     tasks_all_qs = Task.objects.filter(Q(organization=org) | Q(lead__organization=org))
     quotations_all_qs = Quotation.objects.filter(organization=org)
     agreements_all_qs = Agreement.objects.filter(organization=org)

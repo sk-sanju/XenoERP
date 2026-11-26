@@ -75,7 +75,7 @@ class Task(models.Model):
     ]
 
     lead = models.ForeignKey('leads.Lead', on_delete=models.CASCADE, related_name='tasks', null=True, blank=True)
-    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='tasks', null=True, blank=True)
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='tasks')
     title = models.CharField(max_length=255, default='Project Task')
     description = models.TextField(blank=True, null=True)
     assignees = models.ManyToManyField(UserProfile, blank=True, related_name='assigned_tasks')
@@ -88,6 +88,7 @@ class Task(models.Model):
     completed = models.BooleanField(default=False)
     is_starred = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = 'tasks'

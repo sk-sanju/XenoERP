@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.utils import timezone
 import json
 
 
@@ -36,6 +37,8 @@ class Department(models.Model):
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='departments')
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         unique_together = ('organization', 'name')
@@ -49,6 +52,8 @@ class StaffRole(models.Model):
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='staff_roles')
     name = models.CharField(max_length=100)
     permissions_json = models.TextField(default='{}')
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         unique_together = ('organization', 'name')
@@ -67,6 +72,8 @@ class UserProfile(models.Model):
     location = models.CharField(max_length=255, blank=True, null=True)
     department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True, blank=True, related_name='members')
     custom_permissions_json = models.TextField(default='{}')
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = 'user_profiles'

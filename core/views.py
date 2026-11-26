@@ -181,7 +181,7 @@ def add_staff_view(request):
                 dept = None
                 if department_id:
                     dept = Department.objects.filter(id=department_id, organization=org).first()
-                UserProfile.objects.create(
+                profile = UserProfile.objects.create(
                     user=user,
                     organization=org,
                     role=role,
@@ -190,6 +190,18 @@ def add_staff_view(request):
                     location=location or None,
                     department=dept
                 )
+                try:
+                    from hr.models import EmployeeProfile
+                    EmployeeProfile.objects.create(
+                        user_profile=profile,
+                        organization=org,
+                        department=dept,
+                        employee_id=f"EMP{profile.id:04d}",
+                        date_of_joining=timezone.now().date(),
+                        salary_amount=0.00
+                    )
+                except Exception:
+                    pass
                 try:
                     SystemNotification.objects.create(user=request.user, message=f"Staff member '{first_name or username}' created successfully.", type='success')
                 except Exception:
@@ -333,64 +345,26 @@ def edit_staff_view(request, profile_id):
 def delete_staff_ajax(request, profile_id):
     """AJAX endpoint to delete a staff member."""
     if request.method == 'POST':
-        org = request.user.profile.organization
+        org = getattr(getattr(request.user, 'profile', None), 'organization', None)
         try:
-            profile = UserProfile.objects.get(id=profile_id, organization=org)
+            if request.user.is_superuser:
+                profile = UserProfile.objects.get(id=profile_id)
+            else:
+                profile = UserProfile.objects.get(id=profile_id, organization=org)
+
             if profile.user == request.user:
                 return JsonResponse({'success': False, 'error': 'You cannot delete your own profile.'})
 
             user = profile.user
             with transaction.atomic():
-                with connection.cursor() as cursor:
-                    try:
-                        cursor.execute("SELECT id FROM hr_employees WHERE user_profile_id = %s", [profile.id])
-                        emp_ids = [row[0] for row in cursor.fetchall()]
-                        if emp_ids:
-                            cursor.execute("UPDATE hr_employees SET reporting_manager_id = NULL WHERE reporting_manager_id = ANY(%s)", [emp_ids])
-                            cursor.execute("DELETE FROM hr_employee_documents WHERE employee_id = ANY(%s)", [emp_ids])
-                            cursor.execute("DELETE FROM hr_attendance_corrections WHERE employee_id = ANY(%s)", [emp_ids])
-                            cursor.execute("DELETE FROM hr_onboarding_processes WHERE employee_id = ANY(%s)", [emp_ids])
-                            cursor.execute("DELETE FROM hr_performance_goals WHERE employee_id = ANY(%s)", [emp_ids])
-                            cursor.execute("DELETE FROM hr_resignations WHERE employee_id = ANY(%s)", [emp_ids])
-                            cursor.execute("DELETE FROM hr_leave_balances WHERE employee_id = ANY(%s)", [emp_ids])
-                            cursor.execute("DELETE FROM hr_performance_reviews WHERE employee_id = ANY(%s)", [emp_ids])
-                            cursor.execute("DELETE FROM hr_attendance WHERE employee_id = ANY(%s)", [emp_ids])
-                            cursor.execute("DELETE FROM hr_leave_requests WHERE employee_id = ANY(%s)", [emp_ids])
-                            cursor.execute("DELETE FROM hr_payrolls WHERE employee_id = ANY(%s)", [emp_ids])
-                            cursor.execute("DELETE FROM hr_employees WHERE id = ANY(%s)", [emp_ids])
-                    except Exception:
-                        pass
+                # Clear ManyToMany relations
+                profile.assigned_tasks.clear()
 
-                    for table_cleanup in [
-                        ("hr_branches", "manager_id"),
-                        ("hr_candidate_interviews", "interviewer_id"),
-                        ("hr_audit_logs", "actor_id"),
-                        ("hr_employee_documents", "verified_by_id"),
-                        ("hr_attendance_corrections", "reviewed_by_id"),
-                        ("hr_onboarding_tasks", "assigned_to_id"),
-                        ("hr_performance_reviews", "reviewer_id"),
-                        ("hr_leave_requests", "hr_approval_by_id"),
-                        ("hr_leave_requests", "manager_approval_by_id"),
-                        ("quotations", "prepared_by_id"),
-                        ("content_items", "editor_id"),
-                        ("tickets", "assignee_id"),
-                        ("leads", "owner_id"),
-                    ]:
-                        try:
-                            cursor.execute(f"UPDATE {table_cleanup[0]} SET {table_cleanup[1]} = NULL WHERE {table_cleanup[1]} = %s", [profile.id])
-                        except Exception:
-                            pass
-
-                    for delete_table in ["hr_notifications", "quotation_activities", "tasks_assignees"]:
-                        try:
-                            col = "recipient_id" if delete_table == "hr_notifications" else ("user_id" if delete_table == "quotation_activities" else "userprofile_id")
-                            cursor.execute(f"DELETE FROM {delete_table} WHERE {col} = %s", [profile.id])
-                        except Exception:
-                            pass
-
+                # Cleanly delete profile and associated user
                 profile.delete()
                 if user:
                     user.delete()
+
             return JsonResponse({'success': True, 'message': 'Staff member deleted successfully.'})
         except UserProfile.DoesNotExist:
             return JsonResponse({'success': False, 'error': 'Staff member not found.'})

@@ -9,6 +9,7 @@ from django.db.models import Sum, Count, Q
 
 from core.models import Organization, UserProfile
 from core.utils import get_or_create_dynamic_statuses
+from leads.models import Lead
 from .models import Invoice, InvoiceItem, InvoiceStatus
 
 
@@ -126,9 +127,23 @@ def invoice_create(request):
             else:
                 initial_amount_paid = amount_paid
 
+            lead_obj = None
+            lead_id_val = data.get('lead_id')
+            if lead_id_val:
+                lead_obj = Lead.objects.filter(id=lead_id_val, organization=organization).first()
+            if not lead_obj:
+                cust_name = (data.get('customer_name') or '').strip()
+                comp_name = (data.get('company_name') or '').strip()
+                lead_obj = Lead.objects.filter(
+                    organization=organization
+                ).filter(
+                    Q(company__iexact=comp_name) | Q(name__iexact=cust_name) | (Q(name__iexact=comp_name) if comp_name else Q(id=0))
+                ).first()
+
             with transaction.atomic():
                 invoice = Invoice.objects.create(
                     organization=organization,
+                    lead=lead_obj,
                     customer_name=data.get('customer_name', ''),
                     company_name=data.get('company_name', ''),
                     phone_number=data.get('phone_number', ''),
@@ -248,6 +263,16 @@ def invoice_edit(request, invoice_id):
                 invoice.payment_notes = data.get('payment_notes', '')
                 invoice.notes = data.get('notes', '')
                 invoice.terms_conditions = data.get('terms_conditions', '')
+                
+                if not invoice.lead:
+                    cust_name = (data.get('customer_name') or '').strip()
+                    comp_name = (data.get('company_name') or '').strip()
+                    invoice.lead = Lead.objects.filter(
+                        organization=organization
+                    ).filter(
+                        Q(company__iexact=comp_name) | Q(name__iexact=cust_name) | (Q(name__iexact=comp_name) if comp_name else Q(id=0))
+                    ).first()
+
                 invoice.save()
                 
                 invoice.items.all().delete()

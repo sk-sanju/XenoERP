@@ -49,14 +49,36 @@ class FinanceCommissionType(models.Model):
         return self.name
 
 
+class IncomeQuerySet(models.QuerySet):
+    def active(self):
+        return self.filter(is_deleted=False)
+    def deleted(self):
+        return self.filter(is_deleted=True)
+
+class IncomeManager(models.Manager):
+    def get_queryset(self):
+        return IncomeQuerySet(self.model, using=self._db)
+    def active(self):
+        return self.get_queryset().active()
+    def deleted(self):
+        return self.get_queryset().deleted()
+
 class Income(models.Model):
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='incomes')
+    lead = models.ForeignKey('leads.Lead', on_delete=models.SET_NULL, null=True, blank=True, related_name='incomes')
+    invoice = models.ForeignKey('finance.Invoice', on_delete=models.SET_NULL, null=True, blank=True, related_name='incomes')
     date = models.DateField()
     client_name = models.CharField(max_length=255)
     project_name = models.CharField(max_length=255, blank=True, null=True)
     payment_method = models.ForeignKey(FinancePaymentMethod, on_delete=models.SET_NULL, null=True, blank=True)
     amount = models.DecimalField(max_digits=12, decimal_places=2)
+    is_deleted = models.BooleanField(default=False)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    deleted_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='deleted_incomes_records')
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = IncomeManager()
 
     class Meta:
         db_table = 'incomes'
@@ -66,15 +88,36 @@ class Income(models.Model):
         return f"{self.client_name} - {self.amount}"
 
 
+class ExpenseQuerySet(models.QuerySet):
+    def active(self):
+        return self.filter(is_deleted=False)
+    def deleted(self):
+        return self.filter(is_deleted=True)
+
+class ExpenseManager(models.Manager):
+    def get_queryset(self):
+        return ExpenseQuerySet(self.model, using=self._db)
+    def active(self):
+        return self.get_queryset().active()
+    def deleted(self):
+        return self.get_queryset().deleted()
+
 class Expense(models.Model):
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='expenses')
+    lead = models.ForeignKey('leads.Lead', on_delete=models.SET_NULL, null=True, blank=True, related_name='expenses')
     date = models.DateField()
     category = models.ForeignKey(FinanceExpenseCategory, on_delete=models.SET_NULL, null=True, blank=True)
     description = models.TextField(blank=True, null=True)
     cost_center = models.CharField(max_length=150, blank=True, null=True)
     payment_method = models.ForeignKey(FinancePaymentMethod, on_delete=models.SET_NULL, null=True, blank=True)
     amount = models.DecimalField(max_digits=12, decimal_places=2)
+    is_deleted = models.BooleanField(default=False)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    deleted_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='deleted_expenses_records')
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = ExpenseManager()
 
     class Meta:
         db_table = 'expenses'
@@ -553,6 +596,8 @@ class InvoiceStatus(models.Model, StatusStyleMixin):
 
 class Invoice(models.Model):
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='invoices')
+    lead = models.ForeignKey('leads.Lead', on_delete=models.SET_NULL, null=True, blank=True, related_name='invoices')
+    quotation = models.ForeignKey('finance.Quotation', on_delete=models.SET_NULL, null=True, blank=True, related_name='invoices')
     customer_name = models.CharField(max_length=255)
     company_name = models.CharField(max_length=255, blank=True, null=True)
     phone_number = models.CharField(max_length=50, blank=True, null=True)
@@ -585,6 +630,7 @@ class Invoice(models.Model):
     notes = models.TextField(blank=True, null=True)
     terms_conditions = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
         db_table = 'invoices'
@@ -603,6 +649,8 @@ class InvoiceItem(models.Model):
     tax_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
     discount_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     line_total = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
         db_table = 'invoice_items'
