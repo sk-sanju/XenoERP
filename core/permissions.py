@@ -5,6 +5,8 @@ from django.contrib import messages
 
 PERM_REDIRECT_ORDER = [
     ('dashboard', 'dashboard'),
+    ('editor_dashboard', 'editor_dashboard'),
+    ('content_tracker', 'content_tracker'),
     ('leads', 'leads'),
     ('clients', 'clients'),
     ('support', 'customer_support'),
@@ -25,9 +27,22 @@ def page_permission_required(permission_name):
     def decorator(view_func):
         @wraps(view_func)
         def wrapper(request, *args, **kwargs):
-            if request.user and request.user.is_superuser:
+            # 1. Unauthenticated users must be cleanly redirected to login without permission error messages
+            if not request.user or not request.user.is_authenticated:
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.headers.get('x-requested-with') == 'XMLHttpRequest':
+                    return JsonResponse({'success': False, 'error': 'Authentication required.'}, status=401)
+                from django.urls import reverse
+                login_url = reverse('login')
+                next_path = request.get_full_path()
+                if next_path and next_path != '/' and next_path != login_url:
+                    return redirect(f"{login_url}?next={next_path}")
+                return redirect(login_url)
+
+            # 2. Superusers bypass all permission checks
+            if request.user.is_superuser:
                 return view_func(request, *args, **kwargs)
 
+            # 3. Check profile permissions
             try:
                 profile = getattr(request.user, 'profile', None)
             except Exception:
@@ -44,9 +59,11 @@ def page_permission_required(permission_name):
             if has_perm:
                 return view_func(request, *args, **kwargs)
 
+            # 4. Denied AJAX requests
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.headers.get('x-requested-with') == 'XMLHttpRequest':
                 return JsonResponse({'success': False, 'error': 'You do not have permission to access this page.'}, status=403)
 
+            # 5. Authenticated user without permission: flash message and redirect to permitted module
             messages.error(request, 'You do not have permission to access this page.')
 
             if profile:
@@ -54,10 +71,8 @@ def page_permission_required(permission_name):
                     if perm != permission_name and (getattr(profile, f'has_access_{perm}', False) or profile.check_page_permission(perm)):
                         return redirect(target_name)
 
-            if request.user and request.user.is_authenticated:
-                from django.shortcuts import render
-                return render(request, 'access_denied.html', {'error': 'You do not have permission to access this page. Please contact your organization administrator.'}, status=403)
+            from django.shortcuts import render
+            return render(request, 'access_denied.html', {'error': 'You do not have permission to access this page. Please contact your organization administrator.'}, status=403)
 
-            return redirect('login')
         return wrapper
     return decorator

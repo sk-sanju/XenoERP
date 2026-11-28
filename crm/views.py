@@ -37,6 +37,7 @@ from finance.models import (
 # ==============================================================================
 # 1. EXECUTIVE ERP DASHBOARD
 # ==============================================================================
+@login_required
 @page_permission_required('dashboard')
 def dashboard_view(request):
     org = request.user.profile.organization

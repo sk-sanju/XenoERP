@@ -62,7 +62,7 @@ def login_view(request):
                 request.session.set_expiry(0)
 
             next_url = request.POST.get('next') or request.GET.get('next')
-            if next_url and next_url.startswith('/') and not next_url.startswith('//'):
+            if next_url and next_url.startswith('/') and not next_url.startswith('//') and next_url != '/login/' and next_url != reverse('login'):
                 return redirect(next_url)
             return redirect(_get_landing_page_for_user(user))
         else:
@@ -345,7 +345,19 @@ def edit_staff_view(request, profile_id):
 def delete_staff_ajax(request, profile_id):
     """AJAX endpoint to delete a staff member."""
     if request.method == 'POST':
+        try:
+            if connection.connection is not None and getattr(connection.connection, 'get_transaction_status', lambda: 0)() == 3:
+                connection.close()
+            else:
+                connection.rollback()
+        except Exception:
+            try:
+                connection.close()
+            except Exception:
+                pass
+
         org = getattr(getattr(request.user, 'profile', None), 'organization', None)
+
         try:
             if request.user.is_superuser:
                 profile = UserProfile.objects.get(id=profile_id)
@@ -359,6 +371,44 @@ def delete_staff_ajax(request, profile_id):
             with transaction.atomic():
                 # Clear ManyToMany relations
                 profile.assigned_tasks.clear()
+
+                # Clean child records and references
+                from leads.models import Lead
+                from support.models import Ticket
+                from content_tracker.models import ContentItem
+                from finance.models import Quotation, QuotationActivity, Income, Expense, DeletedIncome, DeletedExpense, QuotationVersion
+                from activities.models import TaskComment, TaskFile, Event, WhatsAppMessage
+                from hr.models import EmployeeProfile, Attendance, LeaveRequest, Payroll
+
+                Lead.objects.filter(owner=profile).update(owner=None)
+                Ticket.objects.filter(assignee=profile).update(assignee=None)
+                ContentItem.objects.filter(editor=profile).update(editor=None)
+                Quotation.objects.filter(prepared_by=profile).update(prepared_by=None)
+                QuotationActivity.objects.filter(user=profile).update(user=None)
+
+                # Clean HR records
+                EmployeeProfile.objects.filter(user_profile=profile).delete()
+                Attendance.objects.filter(user_profile=profile).delete()
+                LeaveRequest.objects.filter(user_profile=profile).delete()
+                Payroll.objects.filter(user_profile=profile).delete()
+
+                # Clean user-level references
+                if user:
+                    SystemNotification.objects.filter(user=user).delete()
+                    TaskComment.objects.filter(user=user).delete()
+                    Event.objects.filter(owner=user).delete()
+                    TaskFile.objects.filter(uploaded_by=user).update(uploaded_by=None)
+                    WhatsAppMessage.objects.filter(user=user).update(user=None)
+                    Income.objects.filter(deleted_by=user).update(deleted_by=None)
+                    Expense.objects.filter(deleted_by=user).update(deleted_by=None)
+                    DeletedIncome.objects.filter(deleted_by=user).update(deleted_by=None)
+                    DeletedExpense.objects.filter(deleted_by=user).update(deleted_by=None)
+                    QuotationVersion.objects.filter(created_by=user).update(created_by=None)
+                    try:
+                        from projects.models import AgreementVersion
+                        AgreementVersion.objects.filter(created_by=user).update(created_by=None)
+                    except Exception:
+                        pass
 
                 # Cleanly delete profile and associated user
                 profile.delete()

@@ -152,6 +152,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'core.middleware.EnsureHealthyDatabaseConnectionMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -195,7 +196,7 @@ is_pooler = ':6543' in db_url or 'pooler.supabase.com' in db_url
 DATABASES = {
     'default': dj_database_url.config(
         default=db_url,
-        conn_max_age=0 if is_pooler or not is_local_db else env.int('CONN_MAX_AGE', default=600),
+        conn_max_age=0 if DEBUG or is_pooler or not is_local_db else env.int('CONN_MAX_AGE', default=600),
         conn_health_checks=True,
         ssl_require=env.bool('DB_SSL_REQUIRE', default=not is_local_db),
     )
